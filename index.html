@@ -1,0 +1,2616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#10261a">
+<title>Pocket Putt</title>
+<style>
+  :root {
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --glass: rgba(12, 28, 20, 0.72);
+    --glass-strong: rgba(10, 24, 17, 0.92);
+    --ink: #f3f7f2;
+    --muted: #b7c8bb;
+    --accent: #ffd34d;
+    --good: #5fe08a;
+    --bad: #ff6b5e;
+    --line: rgba(255, 255, 255, 0.18);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #10261a; color: var(--ink);
+    font: 16px/1.4 var(--font); touch-action: none;
+    -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
+  [hidden] { display: none !important; }
+  canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .btn { position: fixed; z-index: 5; min-width: 76px; height: 76px; padding: 0 14px; border-radius: 22px;
+    border: 2px solid var(--line); background: var(--glass); color: var(--ink); font: 700 17px/1 var(--font);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .btn.on { background: var(--accent); color: #1b1600; border-color: var(--accent); }
+  #btnClub { top: calc(env(safe-area-inset-top) + 12px); left: calc(env(safe-area-inset-left) + 12px); }
+  #btnMove { top: calc(env(safe-area-inset-top) + 12px); right: calc(env(safe-area-inset-right) + 12px); }
+  #btnAim { bottom: calc(env(safe-area-inset-bottom) + 12px); left: calc(env(safe-area-inset-left) + 12px); }
+  .zoomBtn { right: calc(env(safe-area-inset-right) + 12px); min-width: 52px; height: 52px; border-radius: 16px; font-size: 28px; padding: 0; }
+  #btnZoomIn { bottom: calc(env(safe-area-inset-bottom) + 136px); }
+  #btnZoomOut { bottom: calc(env(safe-area-inset-bottom) + 76px); }
+  #btnMic { bottom: calc(env(safe-area-inset-bottom) + 196px); right: calc(env(safe-area-inset-right) + 12px);
+    min-width: 52px; height: 52px; border-radius: 16px; font-size: 22px; padding: 0; }
+  #btnMic.off { opacity: .75; }
+  #btnMic.live { background: var(--good); border-color: var(--good); }
+  #btnMic.talking { box-shadow: 0 0 0 5px rgba(95, 224, 138, .55); }
+  #btnGear { bottom: calc(env(safe-area-inset-bottom) + 12px); right: calc(env(safe-area-inset-right) + 12px);
+    min-width: 52px; height: 52px; border-radius: 16px; font-size: 22px; }
+
+  #info { position: fixed; z-index: 4; top: calc(env(safe-area-inset-top) + 14px); left: 50%; transform: translateX(-50%);
+    background: var(--glass); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
+    font: 600 14px/1.2 var(--font); white-space: nowrap; text-align: center; }
+  #info b { color: var(--accent); }
+  #toast { position: fixed; z-index: 6; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 100px); transform: translateX(-50%);
+    max-width: min(92vw, 460px); background: var(--glass-strong); border: 1px solid var(--line); border-radius: 14px;
+    padding: 10px 16px; text-align: center; font-weight: 600; transition: opacity .25s; pointer-events: none; }
+  #btnSet { left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom) + 12px);
+    min-width: 150px; font-size: 22px; letter-spacing: .02em; }
+  #btnSet.on { background: var(--good); border-color: var(--good); color: #062a13; }
+  #holeBanner { position: fixed; z-index: 7; left: 50%; top: 32%; transform: translate(-50%, -50%); pointer-events: none;
+    background: var(--glass-strong); border: 2px solid var(--accent); border-radius: 22px; padding: 14px 28px 16px;
+    text-align: center; transition: opacity .4s; min-width: 200px; }
+  #holeBanner small { display: block; font: 700 14px/1 var(--font); color: var(--muted); letter-spacing: .12em; text-transform: uppercase; }
+  #holeBanner b { display: block; font: 900 64px/1.05 var(--font); color: var(--accent); }
+  #holeBanner span { display: block; font: 700 17px/1.2 var(--font); }
+  /* Phone held sideways: keep the bottom middle clear so the ball (which sits below centre) is never covered. */
+  /* (#app gets .land from script rather than a media query, since the page may be turned against the phone.) */
+  /* Sideways, Set sits on the right at mid-height, just inside the zoom buttons: under the right thumb. */
+  #app.land #btnSet { left: auto; right: calc(env(safe-area-inset-right) + 76px); top: 50%; bottom: auto;
+    transform: translateY(-50%); height: 64px; min-width: 120px; }
+  #app.land #toast { bottom: calc(env(safe-area-inset-bottom) + 8px); }
+  #app.land #holeBanner { top: 45%; }
+  #app.land #btnAim { bottom: auto; top: calc(env(safe-area-inset-top) + 100px); }
+  #app { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; transform-origin: 0 0; overflow: hidden; }
+  #app.turned .overlay { touch-action: pan-x pan-y; }
+  .pointer { position: fixed; z-index: 4; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; }
+  .pointer svg { width: 100%; height: 100%; filter: drop-shadow(0 1px 3px rgba(0,0,0,.6)); }
+  .pointerLabel { position: fixed; z-index: 4; font: 700 12px/1 var(--font); transform: translate(-50%, 28px);
+    background: var(--glass); padding: 3px 6px; border-radius: 6px; pointer-events: none; white-space: nowrap; }
+
+  .overlay { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+    padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);
+    background: rgba(6, 16, 11, 0.86); overflow-y: auto; touch-action: pan-y; }
+  .card { width: 100%; max-width: 440px; background: var(--glass-strong); border: 1px solid var(--line);
+    border-radius: 20px; padding: 20px; }
+  .card h1 { margin: 0 0 4px; font-size: 28px; }
+  .card h2 { margin: 0 0 8px; font-size: 21px; }
+  .card p { margin: 8px 0; color: var(--muted); }
+  .card p.lead { color: var(--ink); }
+  .row { margin: 16px 0; }
+  .row label.t { display: block; font-weight: 700; margin-bottom: 8px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .seg button { flex: 1; padding: 12px 6px; border: 0; background: transparent; color: var(--ink); font: 600 15px/1 var(--font); }
+  .seg button.on { background: var(--accent); color: #1b1600; }
+  input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; touch-action: pan-x; }
+  .val { float: right; color: var(--accent); font-weight: 700; }
+  .hint { font-size: 13px; }
+  .big { width: 100%; padding: 16px; border-radius: 14px; border: 0; background: var(--accent); color: #1b1600;
+    font: 800 18px/1 var(--font); margin-top: 8px; }
+  .ghost { width: 100%; padding: 13px; border-radius: 14px; border: 1px solid var(--line); background: transparent;
+    color: var(--ink); font: 700 15px/1 var(--font); margin-top: 8px; }
+  .err { color: var(--bad) !important; font-weight: 600; }
+  .holeGrid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .holeGrid button { padding: 11px 0; border-radius: 10px; border: 1px solid var(--line); background: transparent;
+    color: var(--ink); font: 700 15px/1 var(--font); }
+  .holeGrid button.on { background: var(--accent); color: #1b1600; border-color: var(--accent); }
+  table.score { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  table.score td, table.score th { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: center; }
+  table.score td:first-child, table.score th:first-child { text-align: left; }
+
+  /* Multiplayer */
+  #turnBar { position: fixed; z-index: 4; top: calc(env(safe-area-inset-top) + 96px); left: 50%; transform: translateX(-50%);
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: max-content; max-width: 94vw; pointer-events: none; }
+  #turnBar .chip { background: var(--glass); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px 4px 6px;
+    font: 600 13px/1.2 var(--font); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  #turnBar .chip.now { border: 2px solid var(--accent); background: var(--glass-strong); }
+  #turnBar .chip.done { opacity: .55; }
+  #turnBar .chip.talking, .plist li.talking { box-shadow: 0 0 0 2px var(--good); }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex: none; vertical-align: -1px; }
+  .code { font: 900 54px/1 var(--font); letter-spacing: .14em; color: var(--accent); text-align: center; margin: 6px 0 2px; }
+  input.txt { width: 100%; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255,255,255,.06);
+    color: var(--ink); font: 600 17px/1.2 var(--font); -webkit-user-select: text; user-select: text; }
+  input.codeIn { text-transform: uppercase; letter-spacing: .2em; text-align: center; font-weight: 800; }
+  .split { display: flex; gap: 8px; } .split > * { flex: 1; }
+  .plist { list-style: none; padding: 0; margin: 10px 0; }
+  .plist li { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--line); font-weight: 700; }
+  #mpScoreTable { font-size: 14px; }
+  .pickGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .av { border: 2px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.04); padding: 4px 4px 6px;
+    color: var(--ink); font: 600 12px/1.2 var(--font); }
+  .av img { width: 100%; aspect-ratio: 3 / 4; display: block; }
+  .av.on { border-color: var(--accent); background: rgba(255, 211, 77, .14); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+  .sw { width: 44px; height: 44px; border-radius: 50%; border: 3px solid rgba(255,255,255,.25); padding: 0; }
+  .sw.on { border-color: #fff; box-shadow: 0 0 0 3px var(--accent); }
+  .sw:disabled { opacity: .18; }
+  #btnRejoin { margin-bottom: 4px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+<!-- Everything visible lives in #app, so the whole page can be turned back when the phone rotates against
+     the Screen setting (iPhone won't let a web page lock rotation). -->
+<div id="app">
+<canvas id="c"></canvas>
+
+<button class="btn" id="btnClub" hidden>⛳<span>Club</span></button>
+<button class="btn" id="btnMove" hidden>🎯<span id="moveLabel">Move</span></button>
+<button class="btn" id="btnAim" hidden>🧭<span id="aimLabel">Aim</span></button>
+<button class="btn zoomBtn" id="btnZoomIn" hidden aria-label="Zoom in">+</button>
+<button class="btn zoomBtn" id="btnZoomOut" hidden aria-label="Zoom out">−</button>
+<button class="btn" id="btnGear" hidden aria-label="Settings">⚙︎</button>
+<button class="btn off" id="btnMic" hidden aria-label="Voice chat">🎙</button>
+<div id="info" hidden></div>
+<div id="turnBar" hidden></div>
+<div id="toast" style="opacity:0"></div>
+<div id="holeBanner" hidden></div>
+<button class="btn" id="btnSet" hidden>Set</button>
+<div class="pointer" id="ballPtr" hidden><svg viewBox="0 0 46 46"><circle cx="23" cy="23" r="21" fill="rgba(10,24,17,.8)" stroke="#fff" stroke-width="2"/><path d="M14 23h16M24 15l8 8-8 8" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+<div class="pointerLabel" id="ballPtrLabel" hidden></div>
+<div class="pointer" id="holePtr" hidden><svg viewBox="0 0 46 46"><circle id="holePtrDisc" cx="23" cy="23" r="21" fill="rgba(160,30,30,.85)" stroke="#fff" stroke-width="2"/><path d="M14 23h16M24 15l8 8-8 8" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+<div class="pointerLabel" id="holePtrLabel" hidden></div>
+
+<!-- Start -->
+<div class="overlay" id="scrStart">
+  <div class="card">
+    <h1>Pocket Putt</h1>
+    <p class="lead">Your phone is the putter grip. Hold it in both hands, screen up, look down at the ball and swing like a real putt.</p>
+    <p>Look down at the ball and tap <b>Set</b>: you're lined up on the hole and the putter rests on the green. The putter can only hit the ball once you're Set. Lift the phone to look at the hole any time, then look back down and tap Set again.</p>
+    <div class="row">
+      <label class="t">I putt</label>
+      <div class="seg" id="segHand"><button data-v="right">Right-handed</button><button data-v="left">Left-handed</button></div>
+    </div>
+    <div class="row">
+      <label class="t">Distances in</label>
+      <div class="seg" id="segUnits"><button data-v="m">Metres</button><button data-v="ft">Feet</button></div>
+    </div>
+    <button class="big" id="btnRejoin" hidden></button>
+    <button class="big" id="btnStart">Play solo</button>
+    <button class="ghost" id="btnFriends">Play with friends</button>
+    <p class="hint err" id="startErr" hidden></p>
+  </div>
+</div>
+
+<!-- Multiplayer: name, then create or join -->
+<div class="overlay" id="scrMp" hidden>
+  <div class="card">
+    <h2 id="mpTitle">Play with friends</h2>
+    <p id="mpIntro">Up to 4 players, each on their own phone. You take turns in order, and watch from behind the line while the others putt.</p>
+    <div class="row">
+      <label class="t" for="mpName">Your name</label>
+      <input class="txt" id="mpName" maxlength="12" autocomplete="off" placeholder="Name">
+    </div>
+    <div class="row">
+      <label class="t">Your golfer</label>
+      <div class="pickGrid" id="avatarGrid"></div>
+    </div>
+    <div class="row">
+      <label class="t">Your ball colour</label>
+      <div class="swatches" id="colorGrid"></div>
+    </div>
+    <p class="hint err" id="pickErr" hidden></p>
+    <button class="big" id="btnCreate">Create a game</button>
+    <div class="row" id="joinRow">
+      <label class="t" for="mpCode">Or join a friend's game</label>
+      <div class="split"><input class="txt codeIn" id="mpCode" maxlength="5" autocomplete="off" placeholder="CODE"><button class="ghost" id="btnJoin" style="margin-top:0">Join</button></div>
+    </div>
+    <p class="hint err" id="mpErr" hidden></p>
+    <button class="ghost" id="btnMpBack">Back</button>
+  </div>
+</div>
+
+<!-- Lobby -->
+<div class="overlay" id="scrLobby" hidden>
+  <div class="card">
+    <h2>Game code</h2>
+    <div class="code" id="lobbyCode"></div>
+    <button class="big" id="btnInvite">📨 Invite friends</button>
+    <p class="hint" style="text-align:center">Sends a link by text, WhatsApp or anything else. Or friends can open pocketputt.netlify.app, tap <b>Play with friends</b> and enter the code.</p>
+    <ul class="plist" id="lobbyList"></ul>
+    <button class="ghost" id="btnVoiceLobby">🎙 Turn on voice chat</button>
+    <p class="hint" id="voiceHint">Talk while you play. Skip it if you're all in the same room. Earbuds stop echo.</p>
+    <button class="big" id="btnMpStart" hidden>Start game</button>
+    <p class="hint" id="lobbyWait" hidden>Waiting for the host to start…</p>
+    <button class="ghost" id="btnLeave">Leave</button>
+  </div>
+</div>
+
+<!-- Multiplayer scorecard between holes -->
+<div class="overlay" id="scrMpScore" hidden>
+  <div class="card">
+    <h2 id="mpScoreTitle"></h2>
+    <table class="score" id="mpScoreTable"></table>
+    <button class="big" id="btnMpNext" hidden></button>
+    <p class="hint" id="mpScoreWait" hidden></p>
+  </div>
+</div>
+
+<!-- Motion access refused (iPhone) -->
+<div class="overlay" id="scrMotion" hidden style="z-index:12">
+  <div class="card">
+    <h2>Motion access is blocked</h2>
+    <p class="lead">Pocket Putt uses your phone's motion sensor to swing the putter, but the phone said no without asking you.</p>
+    <p id="motionWhy"></p>
+    <a class="big" id="btnOpenSafari" hidden style="display:block;text-align:center;text-decoration:none">Open in Safari</a>
+    <button class="big" id="btnMotionRetry">Try again</button>
+    <p class="hint err" id="motionErr" hidden></p>
+    <button class="ghost" id="btnMotionCancel">Cancel</button>
+  </div>
+</div>
+
+<!-- Hole done -->
+<div class="overlay" id="scrDone" hidden>
+  <div class="card">
+    <h2 id="doneTitle"></h2>
+    <p class="lead" id="doneText"></p>
+    <table class="score" id="scoreTable"></table>
+    <button class="big" id="btnNext">Next hole</button>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="overlay" id="scrSettings" hidden>
+  <div class="card">
+    <h2>Settings</h2>
+    <div class="row">
+      <label class="t">I putt</label>
+      <div class="seg" id="segHand2"><button data-v="right">Right-handed</button><button data-v="left">Left-handed</button></div>
+    </div>
+    <div class="row">
+      <label class="t">Distances in</label>
+      <div class="seg" id="segUnits2"><button data-v="m">Metres</button><button data-v="ft">Feet</button></div>
+    </div>
+    <div class="row">
+      <label class="t">Screen</label>
+      <div class="seg" id="segScreen"><button data-v="auto">Auto-rotate</button><button data-v="portrait">Portrait</button><button data-v="landscape">Landscape</button></div>
+      <p class="hint">Portrait or Landscape stops the game turning when you tilt the phone to look around.</p>
+    </div>
+    <div class="row">
+      <label class="t">Stroke power <span class="val" id="pVal"></span></label>
+      <input type="range" id="pRange" min="50" max="200" step="5">
+      <p class="hint">Raise it if the ball comes up short with a normal stroke.</p>
+    </div>
+    <div class="row" id="rowPractice">
+      <label class="t">Practice: jump to a hole</label>
+      <div class="holeGrid" id="holeGrid"></div>
+      <p class="hint">Practice holes aren't added to your round's score.</p>
+      <button class="ghost" id="btnRound">Start a full round from hole 1</button>
+    </div>
+    <button class="ghost" id="btnRestart">Restart this hole</button>
+    <button class="ghost" id="btnInvite2" hidden>📨 Invite more friends</button>
+    <button class="ghost" id="btnLeaveGame" hidden>Leave the game</button>
+    <button class="big" id="btnCloseSettings">Done</button>
+  </div>
+</div>
+</div><!-- #app -->
+
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import * as THREE from 'three';
+const V3 = THREE.Vector3, Q = THREE.Quaternion;
+const $ = id => document.getElementById(id);
+
+// ---------- Settings ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('pocketputt.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('pocketputt.' + k, JSON.stringify(v)); } catch (e) {} },
+};
+const settings = {
+  hand: store.get('hand', 'right'),
+  power: store.get('power2', 1),   // new key: the old power value was tuned for the old stroke curve
+  zoom: store.get('zoom', 1),
+  units: store.get('units', 'm'),   // 'm' or 'ft': only what is shown; the game itself runs in metres
+  screen: store.get('screen', 'auto'),   // 'auto', 'portrait' or 'landscape'
+};
+
+// ---------- Screen orientation ----------
+// With Portrait or Landscape chosen, the game must not turn when the phone tilts. Android can lock rotation
+// (in full screen); iPhone can't, so when the phone has rotated against the setting, the whole page (#app) is
+// turned back by the same amount. The game then works as if the screen were at viewAngle() (the motion
+// sensors are read relative to that), on a page appW × appH in size.
+const physAngle = () => {
+  const a = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+  return ((a % 360) + 360) % 360;
+};
+// Phones are portrait at angle 0, but many tablets (and computers) are landscape at 0, so ask which it is.
+function naturalPortrait() {
+  const t = screen.orientation && screen.orientation.type;
+  if (!t) return true;
+  return (physAngle() % 180 === 0) === t.startsWith('portrait');
+}
+let lastLand = null;
+function viewAngle() {
+  const p = physAngle(), np = naturalPortrait();
+  const portraitAt = a => (a % 180 === 0) === np;
+  if (!portraitAt(p)) lastLand = p;
+  if (settings.screen === 'portrait') return portraitAt(p) ? p : (np ? 0 : 90);
+  if (settings.screen === 'landscape') return !portraitAt(p) ? p : (lastLand ?? (np ? 90 : 0));
+  return p;
+}
+let appW = window.innerWidth, appH = window.innerHeight;
+function layoutApp() {
+  const W = window.innerWidth, H = window.innerHeight, el = $('app');
+  const r = (((viewAngle() - physAngle()) % 360) + 360) % 360;   // extra turn for the page, clockwise
+  let tf = 'none';
+  if (r === 90) { appW = H; appH = W; tf = `translate(${W}px,0) rotate(90deg)`; }
+  else if (r === 270) { appW = H; appH = W; tf = `translate(0,${H}px) rotate(-90deg)`; }
+  else if (r === 180) { appW = W; appH = H; tf = `translate(${W}px,${H}px) rotate(180deg)`; }
+  else { appW = W; appH = H; }
+  el.style.width = appW + 'px'; el.style.height = appH + 'px'; el.style.transform = tf;
+  el.classList.toggle('turned', r !== 0);
+  el.classList.toggle('land', appW > appH && appH <= 520);
+  if (typeof resize === 'function' && rendererReady) resize();
+}
+let rendererReady = false;
+async function applyScreenLock() {
+  const so = screen.orientation;
+  try {
+    if (so && so.lock) { if (settings.screen === 'auto') so.unlock(); else await so.lock(settings.screen); }
+  } catch (e) {}   // only works in full screen, and never on iPhone: layoutApp turns the page instead
+  layoutApp();
+}
+window.addEventListener('resize', layoutApp);
+window.addEventListener('orientationchange', () => { layoutApp(); setTimeout(layoutApp, 300); });
+if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', layoutApp);
+// A distance in metres, shown in the player's units.
+function fmtDist(m) {
+  if (settings.units !== 'ft') return `${m.toFixed(1)} m`;
+  const ft = m / 0.3048;
+  return ft < 10 ? `${ft.toFixed(1)} ft` : `${Math.round(ft)} ft`;
+}
+
+// ---------- Constants (metres, seconds) ----------
+const G = 9.81, BALL_R = 0.02135, CUP_R = 0.054;
+const HEAD_W = 0.11, HEAD_BACK = 0.065, HEAD_H = 0.026;   // mallet: face width, depth behind the face, height
+const HEAD_RADIUS = 1.3;         // shoulders to putter head: how far the head travels per degree of swing
+const CAM_H = 1.0;               // virtual eye height over the ball at normal zoom (your real height doesn't matter)
+const SHAFT_LEN = 0.85;          // real putter length: zoomed out you see a normal-sized putter from higher up
+const ZOOMS = [0.7, 1, 1.5, 2.2, 3.2];   // eye height multipliers: + brings you closer, − lifts you up to see more
+const eyeH = () => CAM_H * settings.zoom;
+const CAM_BACK = -0.14;          // eyes past the ball, so a flat phone sees it below centre, near your hands
+const GRIP_SWING = 0.45;         // how far your hands travel on screen with the stroke while Set
+const ROLL_DECEL = 0.6;          // green speed: about 10 on the stimpmeter
+const PUTT_DIST = 3.5;           // metres of roll on a flat green per 1 m/s of putter-head speed: distance
+                                 // follows the stroke in a straight line, so a tap isn't dead and a bit extra isn't a rocket
+const MAX_PUTT = 23;             // longest putt (flat-green roll), metres: about 75 ft
+const SPEED_WINDOW = 50;         // head speed is averaged over this many ms before contact
+const WALL_BOUNCE = 0.6;         // share of speed into a bumper that comes back out
+const CAPTURE_SPEED = 1.25;      // faster than this and the ball lips out
+const SLOWMO_AFTER = 0.914;      // the first yard runs at full speed so you can judge the strike...
+const SLOWMO_TIME = 1.0;         // ...then the ball runs at SLOWMO_SPEED for this long (real seconds)
+const SLOWMO_SPEED = 0.25;
+const BACKSWING_MIN = 0.03;      // after Set, the head must go back this far before a hit counts
+const LOOK_DOWN_Y = -0.7;        // looking down at the ball: within about 45° of straight down
+const LOOK_UP_Y = -0.5;          // lifting the view above about 30° below the horizon leaves Set
+const WALL_H = 0.09, WALL_T = 0.06;
+const UP = new V3(0, 1, 0);
+
+// ---------- Holes ----------
+const HOLES = [
+  { name: 'The Lane', par: 2,
+    poly: [[-0.75, 0.8], [0.75, 0.8], [0.75, -7], [-0.75, -7]],
+    tee: [0, 0], cup: [0.25, -6.1], aim: [0.25, -6.1], blocks: [],
+    h: (x, z) => -0.012 * x - 0.007 * z },
+  { name: 'Dogleg', par: 3,
+    poly: [[-0.7, 0.8], [0.7, 0.8], [0.7, -4.3], [4.5, -4.3], [4.5, -5.9], [-0.7, -5.9]],
+    tee: [0, 0], cup: [3.7, -5.1], aim: [0, -5.1], blocks: [],
+    h: (x, z) => 0.04 * Math.exp(-((x + 0.1) ** 2 + (z + 5.2) ** 2) / 0.5) - 0.006 * x },
+  { name: 'The Ridge', par: 3,
+    poly: [[-1, 0.8], [1, 0.8], [1, -8.5], [-1, -8.5]],
+    tee: [0, 0], cup: [-0.45, -7.6], aim: [-0.2, -7.6],
+    blocks: [[-0.3, -2.6, 0.3, -2.2]],
+    h: (x, z) => 0.05 * Math.exp(-((z + 4.6) ** 2) / 0.35) + 0.01 * x },
+  { name: 'Zigzag', par: 3,
+    poly: [[-0.7, 0.8], [0.7, 0.8], [0.7, -3], [2.7, -3], [2.7, -7.5], [1.3, -7.5], [1.3, -4.4], [-0.7, -4.4]],
+    tee: [0, 0], cup: [2, -6.8], aim: [0, -3.7], blocks: [],
+    h: (x, z) => 0.008 * x },
+  { name: 'The Bar', par: 2,
+    poly: [[-1.2, 0.8], [1.2, 0.8], [1.2, -6], [-1.2, -6]],
+    tee: [0, 0], cup: [0, -5.2], aim: [0.8, -5.2],
+    blocks: [[-0.4, -3.2, 0.4, -2.8]],
+    h: (x, z) => 0.002 * (x * x + (z + 5.2) ** 2) },
+  { name: 'Uphill', par: 2,
+    poly: [[-0.8, 0.8], [0.8, 0.8], [0.8, -8], [-0.8, -8]],
+    tee: [0, 0], cup: [-0.2, -7.2], aim: [-0.2, -7.2], blocks: [],
+    h: (x, z) => -0.02 * z },
+  { name: 'Downhill', par: 2,
+    poly: [[-0.8, 0.8], [0.8, 0.8], [0.8, -6.5], [-0.8, -6.5]],
+    tee: [0, 0], cup: [0.3, -5.8], aim: [0.3, -5.8], blocks: [],
+    h: (x, z) => 0.02 * z + 0.01 * x },
+  { name: 'The Funnel', par: 2,
+    poly: [[-1.5, 0.8], [1.5, 0.8], [1.5, -6], [-1.5, -6]],
+    tee: [0, 0], cup: [0, -4.5], aim: [0, -4.5], blocks: [],
+    h: (x, z) => 0.025 * (1 - Math.exp(-(x * x + (z + 4.5) ** 2) / 2)) },
+  { name: 'Dogleg Left', par: 3,
+    poly: [[-0.7, 0.8], [0.7, 0.8], [0.7, -5.9], [-3.5, -5.9], [-3.5, -4.3], [-0.7, -4.3]],
+    tee: [0, 0], cup: [-2.8, -5.1], aim: [0, -5.1], blocks: [],
+    h: (x, z) => 0.03 * Math.exp(-((z + 2.5) ** 2) / 0.4) + 0.005 * x },
+  { name: 'The Gates', par: 3,
+    poly: [[-1, 0.8], [1, 0.8], [1, -9], [-1, -9]],
+    tee: [0, 0], cup: [0.4, -8.2], aim: [0.05, -3.05],
+    blocks: [[-1, -3.2, -0.15, -2.9], [0.25, -3.2, 1, -2.9], [-1, -6.2, -0.35, -5.9], [0.05, -6.2, 1, -5.9]],
+    h: (x, z) => 0.006 * x },
+  { name: 'The Plateau', par: 3,
+    poly: [[-1, 0.8], [1, 0.8], [1, -8], [-1, -8]],
+    tee: [0, 0], cup: [0.3, -7], aim: [0.3, -7], blocks: [],
+    h: (x, z) => 0.06 / (1 + Math.exp((z + 4.5) * 4)) },
+  { name: 'Hairpin', par: 4,
+    poly: [[-0.7, 0.8], [0.7, 0.8], [0.7, -5], [2.3, -5], [2.3, 0.8], [3.7, 0.8], [3.7, -6.4], [-0.7, -6.4]],
+    tee: [0, 0], cup: [3, 0], aim: [0, -5.7], blocks: [],
+    h: (x, z) => -0.004 * z },
+  { name: 'Bank Shot', par: 2,
+    poly: [[-1.5, 0.8], [1.5, 0.8], [1.5, -4.5], [-1.5, -4.5]],
+    tee: [0.7, 0], cup: [0.9, -3.9], aim: [-1, -2.3],
+    blocks: [[-0.5, -3, 1.5, -1.5]],
+    h: (x, z) => 0 },
+  { name: 'Hump Alley', par: 2,
+    poly: [[-0.6, 0.8], [0.6, 0.8], [0.6, -7], [-0.6, -7]],
+    tee: [0, 0], cup: [0, -6.3], aim: [0, -6.3], blocks: [],
+    h: (x, z) => 0.015 * (1 - Math.cos(-z * 2.2)) },
+  { name: 'Crossroads', par: 3,
+    poly: [[-0.6, 0.8], [0.6, 0.8], [0.6, -3.2], [2.5, -3.2], [2.5, -4.6], [0.6, -4.6], [0.6, -7], [-0.6, -7],
+           [-0.6, -4.6], [-2.5, -4.6], [-2.5, -3.2], [-0.6, -3.2]],
+    tee: [0, 0], cup: [2, -3.9], aim: [0.4, -3.9],
+    blocks: [[-0.15, -4.05, 0.15, -3.75]],
+    h: (x, z) => 0.012 * Math.exp(-(x * x + (z + 3.9) ** 2) / 0.6) },
+  { name: 'The Snake', par: 4,
+    poly: [[-1.2, 0.8], [1.2, 0.8], [1.2, -9], [-1.2, -9]],
+    tee: [0, 0], cup: [-0.6, -8.3], aim: [0.85, -2.3],
+    blocks: [[-1.2, -2.4, 0.5, -2.2], [-0.5, -4.8, 1.2, -4.6], [-1.2, -7.2, 0.5, -7]],
+    h: (x, z) => 0 },
+  { name: 'The Saddle', par: 2,
+    poly: [[-1.2, 0.8], [1.2, 0.8], [1.2, -6], [-1.2, -6]],
+    tee: [0, 0], cup: [0, -5.3], aim: [0, -5.3], blocks: [],
+    h: (x, z) => 0.03 * x * x - 0.004 * (z + 3) ** 2 },
+  { name: 'The Finale', par: 3,
+    poly: [[-1.5, 0.8], [1.5, 0.8], [1.5, -10], [-1.5, -10]],
+    tee: [0, 0], cup: [0, -9], aim: [0.6, -5],
+    blocks: [[-1.5, -7.6, -0.6, -7.3], [0.6, -7.6, 1.5, -7.3]],
+    h: (x, z) => 0.06 * Math.exp(-(x * x + (z + 5) ** 2) / 0.8) },
+];
+
+// ---------- Small helpers ----------
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+const yawQ = th => new Q().setFromAxisAngle(UP, th);
+const heading = v => Math.atan2(-v.x, -v.z);
+function inPoly(poly, x, z) {
+  let ins = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i], [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) ins = !ins;
+  }
+  return ins;
+}
+function inBlock(hole, x, z) { return hole.blocks.some(b => x > b[0] && x < b[2] && z > b[1] && z < b[3]); }
+function onGreen(x, z) { return inPoly(hole.poly, x, z) && !inBlock(hole, x, z); }
+function ter(x, z) { return hole.h(x, z) + (hole.lift || 0); }
+// Raise a hole as a whole if any of it would dip below the surrounding grass (slopes are unchanged).
+function liftHole(hl) {
+  if (hl.lift != null) return;
+  const xs = hl.poly.map(p => p[0]), zs = hl.poly.map(p => p[1]);
+  let low = Infinity;
+  for (let x = Math.min(...xs); x <= Math.max(...xs); x += 0.05)
+    for (let z = Math.min(...zs); z <= Math.max(...zs); z += 0.05)
+      if (inPoly(hl.poly, x, z)) low = Math.min(low, hl.h(x, z));
+  hl.lift = Math.max(0, 0.005 - low);
+}
+function grad(x, z) { const e = 0.01; return [(ter(x + e, z) - ter(x - e, z)) / (2 * e), (ter(x, z + e) - ter(x, z - e)) / (2 * e)]; }
+// Which way the golfer is facing: the top of the screen when the phone is flat, the camera when it is upright.
+function awayDir(q) {
+  const u = new V3(0, 1, 0).applyQuaternion(q), f = new V3(0, 0, -1).applyQuaternion(q);
+  const pu = new V3(u.x, 0, u.z), pf = new V3(f.x, 0, f.z);
+  const w = clamp(1 - pu.length() / 0.5, 0, 1);
+  const a = pu.add(pf.multiplyScalar(w));
+  return a.lengthSq() < 1e-8 ? null : a.normalize();
+}
+
+// ---------- Renderer & scene ----------
+const canvas = $('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.autoClear = false;
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xa9d8f2);
+scene.fog = new THREE.Fog(0xbfe2f3, 18, 70);
+const camera = new THREE.PerspectiveCamera(62, 1, 0.02, 200);
+scene.add(new THREE.HemisphereLight(0xdff2ff, 0x3a5a2a, 1.1));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(-3, 8, 4);
+scene.add(sun);
+
+function resize() {
+  const w = appW, h = appH;   // the page's size as the player sees it (see layoutApp)
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  // Same scale in landscape and portrait: fix the focal length to the long side, as in portrait at 62°.
+  const focal = Math.max(w, h) / (2 * Math.tan(THREE.MathUtils.degToRad(31)));
+  camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(h / (2 * focal)));
+  camera.updateProjectionMatrix();
+}
+rendererReady = true;
+layoutApp();
+
+// Surroundings: rough grass and trees, shared by all holes.
+const rough = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), new THREE.MeshLambertMaterial({ color: 0x2f6b34 }));
+rough.rotation.x = -Math.PI / 2;
+rough.position.y = -0.04;
+scene.add(rough);
+{
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4a2b });
+  const leafMats = [0x1f5a2a, 0x2a6e31, 0x24603a].map(c => new THREE.MeshLambertMaterial({ color: c }));
+  for (let i = 0; i < 46; i++) {
+    const ang = rnd() * Math.PI * 2, r = 9 + rnd() * 28;
+    const x = 1.5 + Math.cos(ang) * r, z = -4 + Math.sin(ang) * r;
+    const s = 0.7 + rnd() * 0.9;
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * s, 0.16 * s, 1.2 * s, 7), trunkMat);
+    trunk.position.y = 0.6 * s;
+    const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.1 * s, 3 * s, 8), leafMats[i % 3]);
+    leaves.position.y = 2.6 * s;
+    tree.add(trunk, leaves);
+    tree.position.set(x, 0, z);
+    scene.add(tree);
+  }
+}
+
+// Per-hole meshes live in this group and are rebuilt for each hole.
+const courseGroup = new THREE.Group();
+scene.add(courseGroup);
+let walls = [];   // segments {ax, az, bx, bz}
+
+function buildHole() {
+  liftHole(hole);
+  courseGroup.clear();
+  walls = [];
+  const xs = hole.poly.map(p => p[0]), zs = hole.poly.map(p => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const step = 0.05, nx = Math.round((maxX - minX) / step), nz = Math.round((maxZ - minZ) / step);
+  const pos = [], col = [], idx = [];
+  const cA = new THREE.Color(0x48a854), cB = new THREE.Color(0x3e9a4b), c = new THREE.Color();
+  for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+    const x = minX + i * step, z = minZ + j * step;
+    pos.push(x, ter(x, z), z);
+    // Mowing stripes give the eye something to track while you swing.
+    c.copy(Math.floor((z + 100) / 0.5) % 2 ? cA : cB);
+    const [gx, gz] = grad(x, z);
+    c.offsetHSL(0, 0, clamp(-(gx * -0.5 + gz * 0.7) * 2.2, -0.08, 0.08));
+    col.push(c.r, c.g, c.b);
+  }
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const cx = minX + (i + 0.5) * step, cz = minZ + (j + 0.5) * step;
+    if (!inPoly(hole.poly, cx, cz)) continue;
+    const a = j * (nx + 1) + i, b = a + 1, d = a + nx + 1, e = d + 1;
+    idx.push(a, d, b, b, d, e);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  courseGroup.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true })));
+
+  // Bumper walls along each edge, sitting just outside the green.
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x8a5a2e });
+  const capMat = new THREE.MeshLambertMaterial({ color: 0xd8b98a });
+  const addBox = (cx, cz, len, rotY, top, depth) => {
+    const hgt = top + 0.1;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(len, hgt, depth), wallMat);
+    m.position.set(cx, top - hgt / 2, cz);
+    m.rotation.y = rotY;
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(len, 0.012, depth + 0.004), capMat);
+    cap.position.set(cx, top, cz);
+    cap.rotation.y = rotY;
+    courseGroup.add(m, cap);
+  };
+  const P = hole.poly;
+  for (let i = 0; i < P.length; i++) {
+    const [ax, az] = P[i], [bx, bz] = P[(i + 1) % P.length];
+    walls.push({ ax, az, bx, bz });
+    const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz);
+    let nxo = dz / L, nzo = -dx / L;
+    const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+    if (inPoly(P, mx + nxo * 0.01, mz + nzo * 0.01)) { nxo = -nxo; nzo = -nzo; }
+    let top = -1;
+    for (let t = 0; t <= 1; t += 0.1) top = Math.max(top, ter(ax + dx * t, az + dz * t));
+    addBox(mx + nxo * WALL_T / 2, mz + nzo * WALL_T / 2, L + WALL_T * 2, Math.atan2(-dz, dx), top + WALL_H, WALL_T);
+  }
+  for (const [x1, z1, x2, z2] of hole.blocks) {
+    walls.push({ ax: x1, az: z1, bx: x2, bz: z1 }, { ax: x2, az: z1, bx: x2, bz: z2 },
+               { ax: x2, az: z2, bx: x1, bz: z2 }, { ax: x1, az: z2, bx: x1, bz: z1 });
+    addBox((x1 + x2) / 2, (z1 + z2) / 2, x2 - x1, 0, ter((x1 + x2) / 2, (z1 + z2) / 2) + 0.12, z2 - z1);
+  }
+
+  // Cup, rim and flag.
+  const [hx, hz] = hole.cup, hy = ter(hx, hz);
+  const cup = new THREE.Mesh(new THREE.CircleGeometry(CUP_R, 40), new THREE.MeshBasicMaterial({ color: 0x0b0f0c }));
+  cup.rotation.x = -Math.PI / 2; cup.position.set(hx, hy + 0.0025, hz);
+  const rim = new THREE.Mesh(new THREE.RingGeometry(CUP_R, CUP_R + 0.006, 40), new THREE.MeshBasicMaterial({ color: 0xf2f2f2 }));
+  rim.rotation.x = -Math.PI / 2; rim.position.set(hx, hy + 0.0026, hz);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1.3, 8), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+  pole.position.set(hx, hy + 0.65, hz);
+  const fShape = new THREE.Shape(); fShape.moveTo(0, 0); fShape.lineTo(0.32, -0.1); fShape.lineTo(0, -0.2);
+  const flag = new THREE.Mesh(new THREE.ShapeGeometry(fShape), new THREE.MeshLambertMaterial({ color: 0xe53935, side: THREE.DoubleSide }));
+  flag.position.set(hx, hy + 1.3, hz);
+  courseGroup.add(cup, rim, pole, flag);
+  // Two small tee markers either side of the start.
+  for (const sx of [-0.55, 0.55]) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.01, 16), new THREE.MeshLambertMaterial({ color: 0x2f6fe0 }));
+    m.position.set(hole.tee[0] + sx, ter(hole.tee[0] + sx, hole.tee[1]) + 0.005, hole.tee[1] + 0.6);
+    courseGroup.add(m);
+  }
+}
+
+// ---------- Ball ----------
+function blobTexture() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const g = cv.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(cv);
+}
+const blobTex = blobTexture();
+const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 }));
+const ballShadow = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.07), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false }));
+ballShadow.rotation.x = -Math.PI / 2;
+scene.add(ballMesh, ballShadow);
+
+const ball = { x: 0, z: 0, vx: 0, vz: 0, state: 'rest', drop: 0, lastX: 0, lastZ: 0 };
+function placeBallMesh() {
+  const y = ter(ball.x, ball.z) + BALL_R - ball.drop;
+  ballMesh.position.set(ball.x, y, ball.z);
+  ballShadow.position.set(ball.x + 0.008, ter(ball.x, ball.z) + 0.0015, ball.z + 0.006);
+  ballShadow.visible = ball.drop < 0.01;
+}
+
+// ---------- Putter ----------
+// Head local axes: +x = face normal (toward the target), +y = up, z = along the face. Origin = centre of the face, on the ground.
+const shaftMat = new THREE.MeshStandardMaterial({ color: 0xd5dae0, metalness: 0.35, roughness: 0.35, transparent: true });
+const headMat = new THREE.MeshStandardMaterial({ color: 0x3b4149, metalness: 0.3, roughness: 0.45, transparent: true });
+const faceMat = new THREE.MeshStandardMaterial({ color: 0xc9cfd6, metalness: 0.5, roughness: 0.3, transparent: true });
+const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
+const shadowMat = new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, depthWrite: false });
+const putterMats = [shaftMat, headMat, faceMat, lineMat];
+const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.0035, 0.0035, 1, 10), shaftMat);
+const head = new THREE.Group();
+{
+  // Half-moon mallet: flat face at x = 0, rounded back behind it.
+  const s = new THREE.Shape();
+  s.moveTo(0, -HEAD_W / 2);
+  s.lineTo(0, HEAD_W / 2);
+  s.absellipse(0, 0, HEAD_BACK, HEAD_W / 2, Math.PI / 2, Math.PI * 3 / 2, false);
+  const g = new THREE.ExtrudeGeometry(s, { depth: HEAD_H, bevelEnabled: true, bevelThickness: 0.003, bevelSize: 0.003, bevelSegments: 2, curveSegments: 24 });
+  g.rotateX(-Math.PI / 2);   // shape (u, v) → (x = u, z = -v), extrusion → up
+  g.translate(-0.003, 0.003, 0);
+  const body = new THREE.Mesh(g, headMat);
+  const face = new THREE.Mesh(new THREE.BoxGeometry(0.004, HEAD_H, HEAD_W), faceMat);
+  face.position.set(-0.001, HEAD_H / 2 + 0.003, 0);
+  const line = new THREE.Mesh(new THREE.BoxGeometry(HEAD_BACK - 0.012, 0.002, 0.004), lineMat);
+  line.position.set(-(HEAD_BACK - 0.012) / 2 - 0.004, HEAD_H + 0.0075, 0);
+  const dotL = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.002, 16), lineMat);
+  dotL.position.set(-0.035, HEAD_H + 0.0075, 0.03);
+  const dotR = dotL.clone(); dotR.position.z = -0.03;
+  const hosel = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.03, 10), shaftMat);
+  hosel.position.set(-0.018, HEAD_H + 0.02, 0);
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.16), shadowMat);
+  shadow.rotation.x = -Math.PI / 2; shadow.position.set(-0.03, 0.001, 0);
+  head.add(shadow, body, face, line, dotL, dotR, hosel);
+  head.userData.hosel = hosel;   // moved to the heel each frame (which end is the heel depends on the hand)
+}
+// The shaft joins the head at the heel (the end nearest you), like most real putters, and the face opens and
+// closes about that point. Head-local z runs toward the toe for a right-hander, toward the heel for a left-hander.
+const HOSEL_X = -0.018;
+const heelZ = () => (settings.hand === 'right' ? -1 : 1) * (HEAD_W / 2 - 0.012);
+const hoselBase = () => new V3(HOSEL_X, 0, heelZ());
+const hoselTop = () => new V3(HOSEL_X, HEAD_H + 0.035, heelZ());
+const headBasis = T => new Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(T, UP, new V3().crossVectors(T, UP)));
+const putter = new THREE.Group();
+putter.add(shaft, head);
+putter.visible = false;
+// The putter is drawn in a second pass on top of the course, so grass and walls never cut through it.
+const putterScene = new THREE.Scene();
+putterScene.add(new THREE.HemisphereLight(0xdff2ff, 0x3a5a2a, 1.1));
+{ const l = new THREE.DirectionalLight(0xffffff, 1.6); l.position.set(-3, 8, 4); putterScene.add(l); }
+putterScene.add(putter);
+
+
+// Target ring for the Move button.
+const ring = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.018, 8, 40), new THREE.MeshBasicMaterial({ color: 0x5fe08a }));
+ring.rotation.x = -Math.PI / 2;
+ring.visible = false;
+scene.add(ring);
+
+// Aim ring, the path from the ball to it, and the marker left where you locked your aim.
+const aimRing = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.014, 8, 40), new THREE.MeshBasicMaterial({ color: 0xffd34d }));
+aimRing.rotation.x = -Math.PI / 2;
+aimRing.visible = false;
+const aimPath = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.012), new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.7, depthWrite: false }));
+aimPath.visible = false;
+const aimMarker = new THREE.Group();
+{
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.5, 8), new THREE.MeshLambertMaterial({ color: 0xffd34d }));
+  pole.position.y = 0.25;
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.1, 24), new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.5, depthWrite: false }));
+  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.004;
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), new THREE.MeshLambertMaterial({ color: 0xffd34d }));
+  top.position.y = 0.5;
+  aimMarker.add(pole, disc, top);
+}
+aimMarker.visible = false;
+scene.add(aimRing, aimPath, aimMarker);
+
+
+// ---------- Game state ----------
+let holeIdx = 0, hole = HOLES[0], strokes = 0;
+const scores = [];
+const st = {
+  view: 'ball',        // 'ball' (standing over the ball) or 'scout'
+  putterOn: true,
+  aiming: false,       // Move target ring showing
+  aimMode: false,      // Aim ring showing
+  atBall: true,        // golfer is standing at the ball's current spot
+  hitLocked: false,    // putter has struck; it can't hit again this stroke
+  started: false,
+};
+const origin = new V3();          // ground point the golfer stands over
+const scoutPos = new V3();
+let ringOk = false;
+let customAim = null;              // [x, z] you chose with Aim; null = aim at the hole
+const aimHit = new V3();
+let aimHitOk = false;
+
+// ---------- Orientation → pose ----------
+// The putter has two modes:
+//  - Free: it hangs from the phone, so lifting the phone to look at the hole lifts the putter with it.
+//  - Set: look down at the ball and tap Set. You're lined up on the hole and the head
+//    settles on the green behind the ball. From then on only the stroke moves it (the phone rolling about
+//    the "away from you" axis), so your height and posture don't matter. Looking up again leaves Set.
+const Qs = new Q();               // raw sensor orientation
+const Qv = new Q();               // orientation in the game world
+let yawOffset = 0, haveSensor = false, lastSensorT = 0, needAim = true;
+const prevQs = new Q();
+let isSet = false, setBlend = 0;
+let addr = null;                  // address reference captured when you become Set
+const stance = { A: new V3(1, 0, 0), T: new V3(0, 0, -1) };   // facing direction and target line
+let prevHead = null;              // {p, n, t} for strike detection
+
+const _euler = new THREE.Euler(), _q1 = new Q(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)), _z = new V3(0, 0, 1);
+// The screen's angle as the game sees it: the page may be turned against the phone (Screen setting).
+function screenAngle() { return THREE.MathUtils.degToRad(viewAngle()); }
+function sensorQuat(alpha, beta, gamma, out) {
+  const d = THREE.MathUtils.degToRad;
+  _euler.set(d(beta), d(alpha), -d(gamma), 'YXZ');
+  out.setFromEuler(_euler);
+  out.multiply(_q1);
+  out.multiply(new Q().setFromAxisAngle(_z, -screenAngle()));
+  return out;
+}
+function updateQv() { Qv.copy(yawQ(-yawOffset)).multiply(Qs); }
+
+function aimTarget() {
+  // Your own aim point if you set one; otherwise the first putt follows the hole's intended line
+  // (round the dogleg) and after that it's straight at the cup.
+  if (customAim) return customAim;
+  return strokes === 0 ? hole.aim : hole.cup;
+}
+function setStance() {
+  const [tx, tz] = aimTarget();
+  const D = new V3(tx - origin.x, 0, tz - origin.z);
+  if (D.lengthSq() < 1e-6) D.set(0, 0, -1);
+  D.normalize();
+  stance.T.copy(D);
+  // Right-handed: the hole is on your left, so you face D × up. Left-handed: up × D.
+  stance.A.copy(settings.hand === 'right' ? new V3().crossVectors(D, UP) : new V3().crossVectors(UP, D));
+}
+// Your feet stay put for the whole game. `homeH` is the way they face, as a raw sensor heading: taken from
+// the phone when the game starts, and again whenever you tap Set (you're looking down at the ball then, so
+// the phone points the way your feet do). Every change of view (your turn, watching a friend, after a putt,
+// a new hole) turns the course to that direction, never to wherever the phone happens to point at the moment,
+// so you never have to shuffle round to find the ball or the shooter.
+let homeH = null;
+function captureHome() {
+  const a = awayDir(Qs);
+  if (a) homeH = heading(a);
+}
+// Turn the world so `dir` (a direction on the course) lies the way your feet face.
+function faceHome(dir) {
+  if (homeH == null) captureHome();
+  if (homeH == null) return;
+  yawOffset = homeH - heading(dir);
+  updateQv();
+}
+// Recompute the stance for the current target and face it from where you stand.
+function turnStance() {
+  setStance();
+  faceHome(stance.A);
+}
+function becomeSet() {
+  setStance();
+  captureHome();   // Set also takes where you're facing now as your new home direction
+  faceHome(stance.A);
+  const inv = Qv.clone().invert();
+  addr = {
+    psi0: heading(stance.A), fwd0: new V3(0, 0, -1).applyQuaternion(Qv),
+    aLocal: stance.A.clone().applyQuaternion(inv),
+    tLocal: stance.T.clone().applyQuaternion(inv),
+    delta: 0, backswing: false,
+  };
+  isSet = true;
+  prevHead = null;
+  // Hold the view steady, looking down on the ball, until the ball is struck.
+  computePose();
+  // Same picture as a flat phone: straight down, top of the screen pointing away from you.
+  const below = pose.P.clone().setY(pose.P.y - 1);
+  lockQ.setFromRotationMatrix(new THREE.Matrix4().lookAt(pose.P, below, stance.A));
+  camLocked = true;
+  sfx.set();
+  haptic(15);
+}
+function leaveSet() { isSet = false; addr = null; prevHead = null; camLocked = false; }
+const lockQ = new Q();
+let camLocked = false, camMix = 0;
+
+function canSet() {
+  return st.putterOn && st.view === 'ball' && st.atBall && ball.state === 'rest' && !st.hitLocked && !st.aiming && !st.aimMode;
+}
+// Lifting the view to look up always takes you out of Set.
+function updateSet() {
+  if (isSet && new V3(0, 0, -1).applyQuaternion(Qs).y > LOOK_UP_Y) { leaveSet(); updateHud(); }
+}
+function pressSet() {
+  if (isSet) { leaveSet(); updateHud(); return; }
+  if (!canSet()) return;
+  if (new V3(0, 0, -1).applyQuaternion(Qs).y > LOOK_DOWN_Y) { toast('Look down at the ball first', 1500); return; }
+  becomeSet();
+  updateHud();
+}
+
+const pose = {
+  P: new V3(), H: new V3(), headQ: new Q(), n: new V3(1, 0, 0), sin: 0, elev: 90, pivot: new V3(),
+  gH: new V3(), gQ: new Q(), rH: new V3(), rQ: new Q(),
+};
+function computePose() {
+  const fwd = new V3(0, 0, -1).applyQuaternion(Qv);
+  pose.elev = THREE.MathUtils.radToDeg(Math.asin(clamp(-fwd.y, -1, 1)));   // degrees below the horizon
+  // Set: head on the green, moved only by the stroke.
+  pose.sin = 0;
+  if (addr) {
+    const aNow = addr.aLocal.clone().applyQuaternion(Qv);
+    if (Math.hypot(aNow.x, aNow.z) > 0.3) addr.delta = wrap(heading(aNow) - addr.psi0);
+    const tNow = addr.tLocal.clone().applyQuaternion(Qv);
+    pose.sin = clamp(tNow.y, -1, 1);
+    const Tf = stance.T.clone().applyAxisAngle(UP, addr.delta);
+    pose.n.copy(Tf);
+    // Opening or closing the face turns the head about the bottom of the shaft (the hosel, at the heel), as
+    // one piece with the shaft: the hosel stays where it sat at address and the face swings round it. The
+    // stroke then carries the whole putter along the face line.
+    const rest = -(BALL_R + 0.004);
+    pose.gQ.copy(headBasis(Tf));
+    pose.pivot.set(origin.x + stance.T.x * rest, 0, origin.z + stance.T.z * rest)
+      .add(hoselBase().applyQuaternion(headBasis(stance.T)))
+      .addScaledVector(Tf, HEAD_RADIUS * pose.sin);
+    pose.gH.copy(pose.pivot).sub(hoselBase().applyQuaternion(pose.gQ));
+    pose.gH.y = ter(pose.gH.x, pose.gH.z);
+  }
+  // Eye position: over the ball (swaying a little with the stroke), at the scouting spot, or watching a friend.
+  if (st.view === 'watch') {
+    pose.P.copy(mp.watchEye);
+  } else if (st.view === 'scout') {
+    pose.P.set(scoutPos.x, scoutPos.y + (CAM_H + 0.45) * settings.zoom, scoutPos.z);
+  } else {
+    pose.P.set(origin.x - stance.A.x * CAM_BACK - stance.T.x * 0.03, ter(origin.x, origin.z) + eyeH(),
+               origin.z - stance.A.z * CAM_BACK - stance.T.z * 0.03);
+  }
+  const side = settings.hand === 'right' ? 1 : -1;
+  // Phone flat: the head hangs straight down the middle of the view, right behind the ball, exactly where
+  // Set will put it. As you lift the phone to look ahead, it drops below and aside so it doesn't hide the hole.
+  const k = clamp((90 - pose.elev) / 60, 0, 1);
+  const h = eyeH();
+  const dir = new V3((-side * 0.005 / h) * (1 - k) + side * 0.07 * k, (CAM_BACK / h) * (1 - k) - 0.2 * k, -1);
+  const reach = h * dir.length();   // just reaches the green when the phone is flat, at any zoom
+  dir.normalize().applyQuaternion(Qv);
+  pose.rH.copy(pose.P).addScaledVector(dir, reach);
+  const up = dir.clone().negate();
+  const n = new V3(-side, 0, 0).applyQuaternion(Qv);            // toward the target side of the screen
+  n.addScaledVector(up, -n.dot(up)).normalize();
+  pose.rQ.setFromRotationMatrix(new THREE.Matrix4().makeBasis(n, up, new V3().crossVectors(n, up)));
+  // Blend between the two.
+  if (addr) {
+    pose.H.lerpVectors(pose.rH, pose.gH, setBlend);
+    pose.headQ.slerpQuaternions(pose.rQ, pose.gQ, setBlend);
+  } else {
+    pose.H.copy(pose.rH);
+    pose.headQ.copy(pose.rQ);
+  }
+}
+
+// Solid while looking down; see-through as the phone comes up toward upright, but never gone.
+function putterOpacity(elev) {
+  if (elev >= 45) return 1;
+  if (elev >= 15) return lerp(0.35, 1, (elev - 15) / 30);
+  return 0.35;
+}
+
+function onSensor(alpha, beta, gamma, t) {
+  sensorQuat(alpha, beta, gamma, Qs);
+  haveSensor = true;
+  if (!st.started) { prevQs.copy(Qs); return; }
+  const dt = lastSensorT ? (t - lastSensorT) / 1000 : 0;
+  lastSensorT = t;
+  prevQs.copy(Qs);
+  if (needAim) { turnStance(); needAim = false; }
+  updateSet();
+  updateQv();
+  computePose();
+  checkStrike(t, dt);
+}
+
+// ---------- Strike detection ----------
+function checkStrike(t, dt) {
+  if (addr && HEAD_RADIUS * pose.sin < -BACKSWING_MIN) addr.backswing = true;
+  const live = isSet && addr && addr.backswing && setBlend > 0.99 && st.putterOn && st.view === 'ball' && st.atBall && !st.hitLocked && ball.state === 'rest';
+  const cur = { p: pose.H.clone(), n: pose.n.clone(), t };
+  if (live) { headHist.push({ a: HEAD_RADIUS * pose.sin, t }); if (headHist.length > 16) headHist.shift(); }
+  else headHist.length = 0;
+  if (!live || !prevHead || dt <= 0 || dt > 0.12) { prevHead = live ? cur : null; return; }
+  const b = new V3(ball.x, 0, ball.z);
+  const d = (h, n) => (b.x - h.x) * n.x + (b.z - h.z) * n.z - BALL_R;
+  const d1 = d(prevHead.p, prevHead.n), d2 = d(cur.p, cur.n);
+  if (d1 > 0 && d2 <= 0) {
+    const f = d1 / (d1 - d2);
+    const hc = prevHead.p.clone().lerp(cur.p, f);
+    const lat = new V3(-cur.n.z, 0, cur.n.x);
+    const off = Math.abs((b.x - hc.x) * lat.x + (b.z - hc.z) * lat.z);
+    const v = cur.p.clone().sub(prevHead.p).divideScalar(dt);
+    const vn = v.x * cur.n.x + v.z * cur.n.z;
+    if (off < HEAD_W / 2 + BALL_R * 0.5 && vn > 0.05) {
+      const hv = strokeSpeed();
+      strike(cur.n, v, hv > 0.05 ? hv : vn, off);
+    }
+  }
+  prevHead = cur;
+}
+// Head speed along the line over the last SPEED_WINDOW ms. Two back-to-back sensor samples can land a couple
+// of ms apart, and that one-step speed spiked now and then, sending the ball miles.
+const headHist = [];
+function strokeSpeed() {
+  const now = headHist[headHist.length - 1];
+  let old = headHist[0];
+  for (const s of headHist) if (now.t - s.t >= SPEED_WINDOW) old = s;
+  const span = (now.t - old.t) / 1000;
+  return span > 0.008 ? (now.a - old.a) / span : 0;
+}
+function strike(n, v, vn, off) {
+  // Mostly where the face points, a little of where the head was travelling; off-centre hits lose speed.
+  const vh = new V3(v.x, 0, v.z).normalize();
+  const dir = n.clone().multiplyScalar(0.85).addScaledVector(vh, 0.15).normalize();
+  const sweet = 1 - clamp(off / (HEAD_W / 2), 0, 1) * 0.25;
+  const dist = Math.min(MAX_PUTT, vn * PUTT_DIST * settings.power * sweet);
+  const speed = Math.sqrt(2 * ROLL_DECEL * dist);   // the speed that rolls `dist` on a flat green
+  ball.vx = dir.x * speed; ball.vz = dir.z * speed;
+  ball.state = 'rolling';
+  st.hitLocked = true;
+  slowFrom = [ball.x, ball.z];
+  slowT = 0;
+  camLocked = false;   // after contact the view follows the phone again
+  strokes++;
+  sfx.hit(speed);
+  haptic(25 + Math.round(dist / MAX_PUTT * 35));   // a firmer buzz for a harder hit
+  toast(`${fmtDist(dist)} putt`, 1200);
+  updateHud();
+}
+
+// Vibration. iPhones have no navigator.vibrate; Safari 18+ gives a haptic tick when a switch-style checkbox is
+// toggled, so we flip a hidden one there instead (a single tick, whatever the length).
+const hapticSwitch = (() => {
+  if (navigator.vibrate) return null;
+  const label = document.createElement('label');
+  label.style.cssText = 'position:fixed;left:-99px;top:0;opacity:0;pointer-events:none';
+  label.ariaHidden = 'true';
+  const input = document.createElement('input');
+  input.type = 'checkbox'; input.setAttribute('switch', ''); input.tabIndex = -1;
+  label.appendChild(input);
+  document.body.appendChild(label);
+  return label;
+})();
+function haptic(ms) {
+  try {
+    if (navigator.vibrate) navigator.vibrate(ms);
+    else if (hapticSwitch) hapticSwitch.click();
+  } catch (e) {}
+}
+
+// ---------- Ball physics ----------
+function stepBall(dt) {
+  if (ball.remote) return;   // a friend's ball: it moves from their stream, not from physics here
+  if (ball.state === 'holed') { ball.drop = Math.min(0.07, ball.drop + dt * 0.35); return; }
+  if (ball.state !== 'rolling') return;
+  const [gx, gz] = grad(ball.x, ball.z);
+  const k = (5 / 7) * G;                          // rolling ball on a slope
+  ball.vx -= k * gx * dt; ball.vz -= k * gz * dt;
+  let sp = Math.hypot(ball.vx, ball.vz);
+  const slopeAcc = k * Math.hypot(gx, gz);
+  if (sp > 0) {
+    const ns = Math.max(0, sp - ROLL_DECEL * dt);
+    ball.vx *= ns / sp; ball.vz *= ns / sp; sp = ns;
+  }
+  // At rest once it's nearly stopped on a slope too gentle to overcome the grass. Safety net: anything
+  // crawling for over a second and a half also counts as stopped.
+  ball.crawl = sp < 0.03 ? (ball.crawl || 0) + dt : 0;
+  if ((sp < 0.012 && slopeAcc < ROLL_DECEL) || ball.crawl > 1.5) { ball.vx = ball.vz = 0; ball.crawl = 0; stopBall(); return; }
+  ball.lastX = ball.x; ball.lastZ = ball.z;
+  ball.x += ball.vx * dt; ball.z += ball.vz * dt;
+  for (const w of walls) {
+    const ex = w.bx - w.ax, ez = w.bz - w.az, L2 = ex * ex + ez * ez;
+    const t = clamp(((ball.x - w.ax) * ex + (ball.z - w.az) * ez) / L2, 0, 1);
+    const cx = w.ax + ex * t, cz = w.az + ez * t;
+    let dx = ball.x - cx, dz = ball.z - cz;
+    const dist = Math.hypot(dx, dz);
+    if (dist < BALL_R && dist > 1e-6) {
+      dx /= dist; dz /= dist;
+      ball.x = cx + dx * BALL_R; ball.z = cz + dz * BALL_R;
+      const vn = ball.vx * dx + ball.vz * dz;
+      if (vn < 0) {
+        ball.vx -= (1 + WALL_BOUNCE) * vn * dx; ball.vz -= (1 + WALL_BOUNCE) * vn * dz;
+        if (vn < -0.15) sfx.bump(-vn);
+      }
+    }
+  }
+  if (!onGreen(ball.x, ball.z)) { ball.x = ball.lastX; ball.z = ball.lastZ; ball.vx *= -0.5; ball.vz *= -0.5; }
+  const cd = Math.hypot(ball.x - hole.cup[0], ball.z - hole.cup[1]);
+  if (cd < CUP_R - 0.008) {
+    if (sp < CAPTURE_SPEED) {
+      ball.state = 'holed'; ball.x = hole.cup[0]; ball.z = hole.cup[1]; ball.vx = ball.vz = 0;
+      sfx.cup();
+      if (mp.on) mpAfterShot(true); else setTimeout(holeDone, 1100);
+    } else {
+      ball.vx *= 0.985; ball.vz *= 0.985;  // racing over the cup
+    }
+  }
+}
+function stopBall() {
+  ball.state = 'rest';
+  if (mp.on) { mpAfterShot(false); return; }
+  if (strokes >= 8) { toast('8 strokes — picking up.', 2000); setTimeout(holeDone, 1200); return; }
+  walkIn = 0.5;   // after a short pause, walk to the ball
+}
+// Walk straight to the ball, facing the hole, ready for the next putt.
+let walkIn = 0;
+function walkToBall(dt) {
+  if (walkIn <= 0) return;
+  walkIn -= dt;
+  if (walkIn > 0 || ball.state !== 'rest') return;
+  customAim = null;
+  goToBall();
+  turnStance();
+  st.hitLocked = false;
+  st.putterOn = true;
+  leaveSet();
+  setBlend = 0;
+  updateHud();
+  toast('Look down at the ball, line up and tap Set', 3000);
+}
+
+// ---------- Buttons ----------
+function goToBall() {
+  st.view = 'ball'; st.atBall = true; st.aiming = false;
+  origin.set(ball.x, ter(ball.x, ball.z), ball.z);
+  setStance();
+}
+function pressClub() {
+  if (ball.state !== 'rest') return;
+  if (st.aimMode) { st.aimMode = false; updateHud(); return; }
+  if (st.view !== 'ball' || !st.atBall || st.aiming) {
+    goToBall();
+    st.putterOn = true;
+  } else {
+    st.putterOn = !st.putterOn;
+    if (!st.putterOn) leaveSet();
+  }
+  prevHead = null;
+  updateHud();
+}
+function pressAim() {
+  if (ball.state !== 'rest') return;
+  if (!st.aimMode) {
+    if (st.view !== 'ball' || !st.atBall) goToBall();
+    st.aiming = false; st.aimMode = true;
+    leaveSet();
+    updateHud();
+    toast('Point the ring where you want to hit it, then tap Lock', 3000);
+    return;
+  }
+  if (!aimHitOk) { toast('Point the ring at the ground', 1500); return; }
+  st.aimMode = false;
+  const toCup = Math.hypot(aimHit.x - hole.cup[0], aimHit.z - hole.cup[1]);
+  if (toCup < 0.5) { customAim = null; toast('Aiming at the hole. Look down and tap Set.', 2500); }
+  else { customAim = [aimHit.x, aimHit.z]; toast('Aim locked. Look down at the ball and tap Set.', 2500); }
+  turnStance();
+  updateHud();
+}
+function pressMove() {
+  if (ball.state === 'rolling') return;
+  st.aimMode = false;
+  if (st.view === 'scout') {
+    // Second press after moving: back to where you were standing.
+    st.view = 'ball';
+    updateHud();
+    return;
+  }
+  if (!st.aiming) {
+    st.aiming = true; leaveSet(); prevHead = null;
+    updateHud();
+    toast('Point the ring at a spot on the green, then tap Go', 2600);
+    return;
+  }
+  if (!ringOk) { toast('Point the ring at the green', 1500); return; }
+  st.view = 'scout'; st.aiming = false;
+  scoutPos.copy(ring.position);
+  updateHud();
+  toast('Tap Back to return to your ball', 2200);
+}
+
+function updateHud() {
+  $('btnClub').classList.toggle('on', st.putterOn);
+  $('btnMove').classList.toggle('on', st.aiming);
+  $('btnAim').classList.toggle('on', st.aimMode);
+  $('aimLabel').textContent = st.aimMode ? 'Lock' : 'Aim';
+  $('moveLabel').textContent = st.view === 'scout' ? 'Back' : st.aiming ? 'Go' : 'Move';
+  $('info').innerHTML = (practice ? 'Practice · ' : '') + `Hole <b>${holeIdx + 1}</b>/${HOLES.length} · Par ${hole.par} · Strokes <b>${strokes}</b>`;
+  if (mp.on) mpHud();
+}
+let toastTimer = 0;
+function toast(msg, ms = 2000) {
+  const el = $('toast'); el.textContent = msg; el.style.opacity = 1;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (el.style.opacity = 0), ms);
+}
+function updateSetButton() {
+  const el = $('btnSet');
+  el.hidden = !(st.started && (isSet || canSet()));
+  el.classList.toggle('on', isSet);
+  el.textContent = isSet ? 'Set ✓' : 'Set';
+}
+
+// ---------- Holes flow ----------
+function startHole(i) {
+  settings.zoom = 1; store.set('zoom', 1);
+  holeIdx = i; hole = HOLES[i]; strokes = 0; walkIn = 0; slowT = 0; slowFrom = null; customAim = null; st.aimMode = false;
+  ball.x = hole.tee[0]; ball.z = hole.tee[1]; ball.vx = ball.vz = 0; ball.state = 'rest'; ball.drop = 0;
+  Object.assign(st, { putterOn: true, hitLocked: false });
+  goToBall();
+  leaveSet(); setBlend = 0;
+  needAim = true;
+  buildHole();
+  updateHud();
+  showBanner(i);
+  toast('Look down at the ball and tap Set.', 3500);
+}
+let bannerTimer = 0;
+function showBanner(i) {
+  const el = $('holeBanner');
+  el.innerHTML = `<small>Hole</small><b>${i + 1}</b><span>${HOLES[i].name} · Par ${HOLES[i].par}</span>`;
+  el.hidden = false; el.style.opacity = 1;
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => { el.style.opacity = 0; bannerTimer = setTimeout(() => (el.hidden = true), 400); }, 2600);
+}
+let practice = false;
+function holeDone() {
+  if (!practice) scores[holeIdx] = strokes;
+  const diff = strokes - hole.par;
+  const word = ball.state !== 'holed' ? 'Picked up' : strokes === 1 ? 'Hole in one!' : diff <= -2 ? 'Eagle!' : diff === -1 ? 'Birdie!' : diff === 0 ? 'Par' : diff === 1 ? 'Bogey' : `+${diff}`;
+  $('doneTitle').textContent = word;
+  $('doneText').textContent = `${hole.name}: ${strokes} stroke${strokes === 1 ? '' : 's'} (par ${hole.par}).`;
+  const last = holeIdx === HOLES.length - 1;
+  let rows = '<tr><th>Hole</th><th>Par</th><th>Strokes</th></tr>', tp = 0, ts = 0;
+  HOLES.forEach((h, k) => {
+    if (scores[k] == null) return;
+    tp += h.par; ts += scores[k];
+    rows += `<tr><td>${k + 1}. ${h.name}</td><td>${h.par}</td><td>${scores[k]}</td></tr>`;
+  });
+  rows += `<tr><th>Total</th><th>${tp}</th><th>${ts}</th></tr>`;
+  $('scoreTable').innerHTML = practice ? '' : rows;
+  if (practice) $('doneText').textContent += ' Practice hole: not counted.';
+  $('btnNext').textContent = last ? (practice ? 'Hole 1' : 'Play again') : 'Next hole';
+  $('scrDone').hidden = false;
+}
+$('btnNext').onclick = () => {
+  $('scrDone').hidden = true;
+  if (holeIdx === HOLES.length - 1) { if (!practice) scores.length = 0; startHole(0); } else startHole(holeIdx + 1);
+};
+
+// ---------- Sound ----------
+let actx = null;
+function unlockAudio() { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {} }
+function tone(freq, dur, vol, type = 'sine', when = 0) {
+  if (!actx) return;
+  const t0 = actx.currentTime + when, o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0); o.frequency.exponentialRampToValueAtTime(freq * 0.5, t0 + dur);
+  g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+const sfx = {
+  hit: s => { tone(1800, 0.05, clamp(0.15 + s * 0.08, 0.15, 0.5), 'triangle'); tone(600, 0.08, 0.12); },
+  bump: s => tone(220, 0.08, clamp(s * 0.3, 0.05, 0.3), 'square'),
+  cup: () => { tone(900, 0.06, 0.3, 'triangle'); tone(700, 0.06, 0.25, 'triangle', 0.09); tone(500, 0.12, 0.2, 'triangle', 0.18); },
+  set: () => tone(1200, 0.06, 0.08, 'sine'),
+};
+
+// ---------- Motion input ----------
+let gotEvent = false;
+function onOrientation(e) {
+  if (e.alpha == null && e.beta == null) return;
+  gotEvent = true;
+  onSensor(e.alpha || 0, e.beta || 0, e.gamma || 0, e.timeStamp || performance.now());
+}
+// Desktop fallback for testing: drag to look, Shift+drag (or right-drag) to swing.
+const desk = { alpha: 0, beta: 20, gamma: 0, on: false, drag: null };
+function deskEmit() { onSensor(desk.alpha, desk.beta, desk.gamma, performance.now()); }
+function enableDesk() {
+  desk.on = true;
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('pointerdown', e => { desk.drag = { x: e.clientX, y: e.clientY, swing: e.shiftKey || e.button === 2 }; });
+  window.addEventListener('pointerup', () => (desk.drag = null));
+  window.addEventListener('pointermove', e => {
+    if (!desk.drag) return;
+    const dx = e.clientX - desk.drag.x, dy = e.clientY - desk.drag.y;
+    desk.drag.x = e.clientX; desk.drag.y = e.clientY;
+    if (desk.drag.swing) desk.gamma = clamp(desk.gamma + dx * 0.25, -80, 80);
+    else { desk.alpha -= dx * 0.25; desk.beta = clamp(desk.beta + dy * 0.25, -10, 170); }
+    deskEmit();
+  });
+  // Keep the sensor stream ticking on a desktop.
+  setInterval(deskEmit, 50);
+  toast('No motion sensors found. Drag to look, Shift+drag to swing.', 4000);
+}
+
+// Ask for motion access (iPhone needs a tap to ask) and start listening. Shared by solo and multiplayer.
+let motionOn = false;
+async function enableMotion() {
+  unlockAudio();
+  if (motionOn) return true;
+  const DOE = window.DeviceOrientationEvent;
+  if (DOE && typeof DOE.requestPermission === 'function') {
+    let r;
+    try { r = await DOE.requestPermission(); } catch (e) { r = 'error'; }   // 'error': asked outside a tap
+    if (r !== 'granted' && !await motionHelp()) return false;
+  }
+  motionOn = true;
+  window.addEventListener('deviceorientation', onOrientation);
+  try { if (document.documentElement.requestFullscreen && !/iPhone|iPad/.test(navigator.userAgent)) document.documentElement.requestFullscreen().then(applyScreenLock).catch(() => {}); } catch (e) {}
+  keepAwake();
+  setTimeout(() => { if (!gotEvent && !desk.on && !window.__ppNoDesk) enableDesk(); }, 1000);
+  return true;
+}
+// iPhone said no to motion without showing the question. Almost always either the link opened inside
+// another app's browser (Messenger, Instagram, Gmail...), which blocks it outright, or Safari remembered an
+// earlier "Don't Allow", which it keeps until Safari is fully closed. Explain which, and let them try again:
+// resolves true once access is granted, so whatever they were doing carries on.
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IN_APP = IOS && (/FBAN|FBAV|FB_IAB|Instagram|Line\/|Snapchat|GSA\/|LinkedInApp|Twitter|MicroMessenger/.test(navigator.userAgent) || !/Safari\//.test(navigator.userAgent));
+function motionHelp() {
+  return new Promise(resolve => {
+    $('motionWhy').innerHTML = IN_APP
+      ? 'This page opened <b>inside another app</b>, and that app blocks motion. Tap <b>Open in Safari</b> below (or the <b>⋯</b> / share button, then <b>Open in Safari</b>).'
+      : 'Your iPhone probably remembered an earlier <b>Don\'t Allow</b>. Tap <b>Try again</b>. If no question pops up: swipe up from the bottom of the screen, swipe <b>Safari</b> away to close it completely, then open the link again and tap <b>Allow</b>.';
+    const safari = $('btnOpenSafari');
+    safari.hidden = !IN_APP;
+    safari.href = 'x-safari-' + location.href;   // opens Safari from most in-app browsers on recent iPhones
+    $('motionErr').hidden = true;
+    $('scrMotion').hidden = false;
+    const done = ok => { $('scrMotion').hidden = true; resolve(ok); };
+    $('btnMotionRetry').onclick = async () => {
+      let r;
+      try { r = await DeviceOrientationEvent.requestPermission(); } catch (e) { r = 'error'; }
+      if (r === 'granted') { done(true); return; }
+      $('motionErr').textContent = IN_APP ? 'Still blocked: this app won\'t allow it. Open the link in Safari.' : 'Still blocked. Close Safari completely (swipe it away), open the link again and tap Allow.';
+      $('motionErr').hidden = false;
+    };
+    $('btnMotionCancel').onclick = () => done(false);
+  });
+}
+function showGameHud() { ['btnClub', 'btnMove', 'btnAim', 'btnZoomIn', 'btnZoomOut', 'btnGear', 'info'].forEach(id => ($(id).hidden = false)); }
+async function start() {
+  if (!await enableMotion()) return;
+  $('scrStart').hidden = true;
+  showGameHud();
+  st.started = true;
+  startHole(0);
+}
+let wakeLock = null;
+async function keepAwake() { try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && st.started) keepAwake(); });
+
+$('btnClub').onclick = pressClub;
+$('btnMove').onclick = pressMove;
+$('btnAim').onclick = pressAim;
+$('btnSet').onclick = pressSet;
+function zoomStep(d) {
+  let i = ZOOMS.indexOf(settings.zoom);
+  if (i < 0) i = 1;
+  i = clamp(i + d, 0, ZOOMS.length - 1);
+  settings.zoom = ZOOMS[i];
+  store.set('zoom', settings.zoom);
+  // While Set, re-take the straight-down view from the new height.
+  if (isSet) { computePose(); lockQ.setFromRotationMatrix(new THREE.Matrix4().lookAt(pose.P, pose.P.clone().setY(pose.P.y - 1), stance.A)); }
+  toast(settings.zoom === 1 ? 'Normal view' : settings.zoom < 1 ? 'Closer view' : 'Zoomed out', 900);
+}
+$('btnZoomIn').onclick = () => zoomStep(-1);
+$('btnZoomOut').onclick = () => zoomStep(1);
+
+// ---------- Settings UI ----------
+function bindSeg(id, get, set) {
+  const el = $(id);
+  const paint = () => el.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === get()));
+  el.querySelectorAll('button').forEach(b => (b.onclick = () => { set(b.dataset.v); paint(); }));
+  paint();
+}
+const setHand = v => { if (settings.hand !== v) { leaveSet(); setStance(); } settings.hand = v; store.set('hand', v); };
+bindSeg('segHand', () => settings.hand, setHand);
+const setUnits = v => { settings.units = v; store.set('units', v); };
+bindSeg('segUnits', () => settings.units, setUnits);
+$('btnStart').onclick = start;
+
+$('btnGear').onclick = () => {
+  bindSeg('segHand2', () => settings.hand, setHand);
+  bindSeg('segUnits2', () => settings.units, setUnits);
+  bindSeg('segScreen', () => settings.screen, v => { settings.screen = v; store.set('screen', v); applyScreenLock(); });
+  const pr = $('pRange');
+  pr.value = Math.round(settings.power * 100); $('pVal').textContent = `${pr.value}%`;
+  pr.oninput = () => { settings.power = pr.value / 100; store.set('power2', settings.power); $('pVal').textContent = `${pr.value}%`; };
+  buildHoleGrid();
+  $('rowPractice').hidden = $('btnRestart').hidden = mp.on;   // no practice holes or restarts mid-game with friends
+  $('btnInvite2').hidden = $('btnLeaveGame').hidden = !mp.on;
+  $('scrSettings').hidden = false;
+};
+$('btnCloseSettings').onclick = () => { $('scrSettings').hidden = true; };
+function buildHoleGrid() {
+  const g = $('holeGrid');
+  g.innerHTML = '';
+  HOLES.forEach((h, i) => {
+    const b = document.createElement('button');
+    b.textContent = i + 1;
+    b.title = h.name;
+    b.classList.toggle('on', i === holeIdx);
+    b.onclick = () => { practice = true; $('scrSettings').hidden = true; startHole(i); };
+    g.appendChild(b);
+  });
+}
+$('btnRound').onclick = () => { practice = false; scores.length = 0; $('scrSettings').hidden = true; startHole(0); };
+$('btnRestart').onclick = () => { $('scrSettings').hidden = true; startHole(holeIdx); };
+
+// ---------- Multiplayer ----------
+// Up to 4 phones in one game. The host's phone keeps the shared state (players, whose turn, scores) and
+// relays everything; the others connect to it through PeerJS (free public matchmaking, then phone to phone).
+// Turns go strictly in order, one shot each. The shooter streams their ball, putter swing and line a few
+// times a second; everyone else watches from behind the line, with the shooter drawn see-through.
+//
+// Seats survive drops. Each player has a private seat key (kept on their phone with the game code). A
+// dropped player's phone keeps trying to get back in, and the host keeps their seat and score: their turns
+// are only skipped after MP_TIMEOUT, and even then they can come back with the same key. If the page itself
+// is closed, the start screen offers Rejoin (or Resume, for the host, who keeps the whole game on their phone).
+const MP_COLORS = [0xff5a4f, 0x3d8bff, 0xffc93c, 0xb36bff, 0xff8a2a, 0xff6fb5, 0x2ec4b6, 0xf2f2f2];
+const AVATARS = [
+  { name: 'Cap', skin: 0xe0b48a, hat: 'cap', pants: 0x2b3440 },
+  { name: 'Visor', skin: 0xc68642, hat: 'visor', pants: 0xe8e2d0 },
+  { name: 'Bucket hat', skin: 0x8d5524, hat: 'bucket', pants: 0x3c5a3a },
+  { name: 'Beanie', skin: 0xf1c27d, hat: 'beanie', pants: 0x1f2a44 },
+  { name: 'Cowboy', skin: 0xa86b42, hat: 'cowboy', pants: 0x4a3628 },
+  { name: 'No hat', skin: 0xffdbac, hat: 'hair', pants: 0x5a5a5a },
+];
+const MP_MAX = 4, MP_PREFIX = 'pocketputt-v1-';
+// Relay for phones that can't reach each other directly (often one on mobile data, one on Wi-Fi). PeerJS's
+// own free relay was down on 2026-10-03, so we use a Metered (metered.ca) free account (20 GB a month). The key
+// is Metered's front-end credential key, meant to sit in a web page (never put the account's secret key here).
+const METERED_APP = 'pocketputt';
+const METERED_KEY = '13eacd9dc620483e448b44fbcecf96319c03';
+let iceServers = null, iceTried = false;   // iceServers stays null if the lookup fails: PeerJS defaults then
+const iceReady = (async () => {
+  try {
+    if (!METERED_APP || !METERED_KEY) return;
+    const r = await fetch(`https://${METERED_APP}.metered.live/api/v1/turn/credentials?apiKey=${METERED_KEY}`);
+    const list = r.ok ? await r.json() : null;
+    if (Array.isArray(list) && list.length) iceServers = list;
+  } catch (e) {} finally { iceTried = true; }
+})();
+const peerOpts = () => (iceServers ? { config: { iceServers, ...(window.__ppRelayOnly ? { iceTransportPolicy: 'relay' } : {}) } } : {});
+const MP_CODE_LEN = 5;           // 23 letters ^ 5 = about 6.4 million codes
+const MP_TIMEOUT = 30000;        // the host skips a silent player's turns after this (they can still come back)
+const MP_RECONNECT_FOR = 90000;  // a dropped player's phone keeps trying to get back in for this long
+const SESSION_HOURS = 3;         // how long Rejoin / Resume is offered after the page closes
+const WATCH_SLOTS = [[2.4, 0], [3.0, 0.8], [3.0, -0.8]];   // [metres behind the ball, metres to the side]
+const WATCH_EYE = 1.55;          // eye height while watching (standing up)
+const SHOOTER_OPACITY = 0.45;    // the shooter after contact: see-through, so a ball rolling behind them stays visible
+const mp = {
+  on: false, host: false, entered: false, peer: null, conns: new Map(), hostConn: null, me: null, code: '', key: '',
+  state: null, seen: {}, live: null, liveT: 0, watchK: 0, cupPlayed: false, doneTimer: 0,
+  lastSeen: new Map(), hostSeen: 0, lastBeat: 0,
+  info: null, joining: false, rejoin: false, reconnecting: false, reconnectUntil: 0, retryTimer: 0, invite: false,
+  watchT: null, watchEye: new V3(), snapEye: false, avatars: new Map(), balls: new Map(),
+};
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const hex = c => '#' + c.toString(16).padStart(6, '0');
+const turnPlayer = () => mp.state && mp.state.players.find(p => p.id === mp.state.turn);
+const myTurn = () => mp.on && mp.state && mp.state.phase === 'play' && mp.state.turn === mp.me;
+const faceDir = (T, hand) => hand === 'right' ? new V3().crossVectors(T, UP) : new V3().crossVectors(UP, T);
+const newKey = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
+
+function newCode() { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ'; let s = ''; for (let i = 0; i < MP_CODE_LEN; i++) s += A[Math.floor(Math.random() * A.length)]; return s; }
+function mpError(msg) { $('mpErr').textContent = msg; $('mpErr').classList.add('err'); $('mpErr').hidden = false; }
+function mpName() { const n = $('mpName').value.trim().slice(0, 12); if (n) store.set('name', n); return n; }
+function mpNetError(e) {
+  const why = e.type === 'peer-unavailable' ? 'No game found with that code. Check it with whoever invited you.'
+    : e.type === 'browser-incompatible' ? "This browser can't do multiplayer."
+    : "Couldn't reach the game service. Check your connection and try again.";
+  if (!mp.state) { mpReset(); mpError(why); } else toast(why, 3500);
+}
+
+// The game you're in, kept on this phone so a closed page can get back in. The host also keeps the state.
+const session = {
+  get() { const s = store.get('session', null); return s && Date.now() - s.t < SESSION_HOURS * 3600e3 ? s : null; },
+  save(extra = {}) { store.set('session', { code: mp.code, host: mp.host, key: mp.key, name: mpName() || store.get('name', ''), t: Date.now(), ...extra }); },
+  clear() { store.set('session', null); },
+};
+
+function mpReset() {
+  const peer = mp.peer;
+  mp.on = false;
+  clearTimeout(mp.retryTimer);
+  voiceStop();
+  try { peer && peer.destroy(); } catch (e) {}
+  for (const g of mp.avatars.values()) scene.remove(g);
+  for (const b of mp.balls.values()) scene.remove(b);
+  mp.conns.clear(); mp.avatars.clear(); mp.balls.clear(); mp.lastSeen.clear(); mp.hostSeen = 0;
+  Object.assign(mp, { host: false, entered: false, peer: null, hostConn: null, me: null, code: '', key: '', state: null, seen: {}, live: null,
+    watchT: null, info: null, joining: false, reconnecting: false });
+  $('btnJoin').disabled = $('btnCreate').disabled = false;
+}
+// Messages go to the host; the host handles its own directly.
+function mpSend(m) {
+  if (mp.host) hostHandle(m, null);
+  else if (mp.hostConn && mp.hostConn.open) mp.hostConn.send(m);
+}
+
+// --- Choosing a golfer and ball colour ---
+const pick = { avatar: store.get('avatar', null), color: store.get('color', null) };
+const thumbCache = new Map();
+let previewR = null;
+// Little pictures of each golfer, in your ball colour (grey until you pick one).
+function avatarThumbs(color) {
+  if (thumbCache.has(color)) return thumbCache.get(color);
+  let urls = AVATARS.map(() => '');
+  try {
+    if (!previewR) {
+      previewR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      previewR.setPixelRatio(1);
+      previewR.setSize(120, 160, false);
+      previewR.setClearColor(0x000000, 0);
+    }
+    const sc = new THREE.Scene();
+    sc.add(new THREE.HemisphereLight(0xffffff, 0x445544, 1.3));
+    const l = new THREE.DirectionalLight(0xffffff, 1.3); l.position.set(1.5, 3, 4); sc.add(l);
+    // Framed on the upper body and hat: that's what tells them apart.
+    const cam = new THREE.PerspectiveCamera(26, 120 / 160, 0.1, 20);
+    cam.position.set(0.95, 1.4, 2.55); cam.lookAt(0, 1.13, 0.12);
+    urls = AVATARS.map((a, i) => {
+      const g = makeGolfer(color, '', i);
+      g.rotation.y = 0.25;
+      sc.add(g);
+      previewR.clear();
+      previewR.render(sc, cam);
+      sc.remove(g);
+      return previewR.domElement.toDataURL('image/png');
+    });
+  } catch (e) {}
+  thumbCache.set(color, urls);
+  return urls;
+}
+function renderPick() {
+  const taken = new Set(mp.info ? mp.info.taken : []);
+  const urls = avatarThumbs(pick.color ?? 0x9aa4ad);
+  $('avatarGrid').innerHTML = AVATARS.map((a, i) =>
+    `<button class="av${pick.avatar === i ? ' on' : ''}" data-a="${i}">${urls[i] ? `<img src="${urls[i]}" alt="">` : ''}${a.name}</button>`).join('');
+  $('colorGrid').innerHTML = MP_COLORS.map(c =>
+    `<button class="sw${pick.color === c ? ' on' : ''}" data-c="${c}" style="background:${hex(c)}"${taken.has(c) ? ' disabled aria-label="taken"' : ''}></button>`).join('');
+  $('avatarGrid').querySelectorAll('button').forEach(b => (b.onclick = () => choose('avatar', +b.dataset.a)));
+  $('colorGrid').querySelectorAll('button').forEach(b => (b.onclick = () => choose('color', +b.dataset.c)));
+}
+async function choose(kind, v) {
+  pick[kind] = v;
+  store.set(kind, v);
+  $('pickErr').hidden = true;
+  // Invited: you're in as soon as you've picked both, and this tap is what asks for motion access. iPhone
+  // only asks straight from a tap, so ask before anything else (redrawing the golfers takes a moment).
+  const joining = mp.invite && pick.avatar != null && pick.color != null && !!mpName();
+  const motion = joining ? enableMotion() : null;
+  renderPick();
+  if (mp.invite && pick.avatar != null && pick.color != null && !joining) {
+    $('pickErr').textContent = 'Type your name, then tap your colour again.'; $('pickErr').hidden = false; return;
+  }
+  if (motion && await motion) tryJoin();
+}
+// Show the join screen: 'create' (make or join a game) or 'invite' (opened from a friend's link).
+function showMpScreen(mode, code) {
+  mp.invite = mode === 'invite';
+  $('mpName').value = $('mpName').value || store.get('name', '');
+  if (mp.invite) pick.color = null;   // invited: picking your colour is the step that joins
+  else {
+    if (pick.avatar == null) pick.avatar = 0;
+    if (pick.color == null) pick.color = MP_COLORS[0];
+  }
+  $('mpTitle').textContent = mp.invite ? 'Join the game' : 'Play with friends';
+  $('mpIntro').textContent = mp.invite ? 'Connecting…' : 'Up to 4 players, each on their own phone. You take turns in order, and watch from behind the line while the others putt.';
+  $('btnCreate').hidden = $('joinRow').hidden = mp.invite;
+  $('btnMpBack').textContent = mp.invite ? 'Not now' : 'Back';
+  $('mpErr').hidden = $('pickErr').hidden = true;
+  ['scrStart', 'scrLobby'].forEach(id => ($(id).hidden = true));
+  $('scrMp').hidden = false;
+  renderPick();
+  if (mp.invite) clientLook(code);
+}
+
+// --- Host side ---
+// Open the host's matchmaking id. A host coming back (Resume, or after the phone slept) may find its id
+// still held by the server for a little while, so it can retry the same code.
+function hostOpen(code, onOpen, onFail, retries = 0) {
+  if (!iceTried) { iceReady.then(() => hostOpen(code, onOpen, onFail, retries)); return; }   // relay details first
+  const peer = new Peer(MP_PREFIX + code, peerOpts());
+  let opened = false;
+  peer.on('open', id => { opened = true; mp.peer = peer; onOpen(id); });
+  peer.on('connection', hostAccept);
+  peer.on('call', onVoiceCall);
+  peer.on('error', e => {
+    if (opened) return;   // later errors are about a single friend (their own retry handles it)
+    try { peer.destroy(); } catch (x) {}
+    if (e.type === 'unavailable-id' && retries > 0) { setTimeout(() => hostOpen(code, onOpen, onFail, retries - 1), 3000); return; }
+    onFail(e);
+  });
+  // Lost the matchmaking server (not the players): reconnect so friends can still get in.
+  peer.on('disconnected', () => { if (mp.on && mp.peer === peer && !peer.destroyed) try { peer.reconnect(); } catch (e) {} });
+}
+async function mpCreate() {
+  const name = mpName();
+  if (!name) { mpError('Type your name first.'); return; }
+  if (pick.avatar == null || pick.color == null) { mpError('Pick a golfer and a ball colour.'); return; }
+  if (!window.Peer) { mpError("Couldn't load multiplayer. Check your connection and reload."); return; }
+  if (!await enableMotion()) return;
+  $('mpErr').hidden = true;
+  $('btnCreate').disabled = true;
+  const go = left => {
+    const code = newCode();
+    hostOpen(code, id => {
+      Object.assign(mp, { on: true, host: true, me: id, code, key: newKey() });
+      mp.state = { phase: 'lobby', hole: 0, turn: null, shot: 0, players: [] };
+      addPlayer({ id, name, hand: settings.hand, avatar: pick.avatar, color: pick.color, key: mp.key });
+      hostBroadcast();
+    }, e => {
+      if (e.type === 'unavailable-id' && left > 0) { go(left - 1); return; }
+      $('btnCreate').disabled = false;
+      mpNetError(e);
+    });
+  };
+  go(3);
+}
+// Host coming back after the page was closed: reopen the same code with the saved game.
+async function mpResume(sess) {
+  if (!window.Peer) { $('startErr').textContent = "Couldn't load multiplayer. Check your connection and reload."; $('startErr').hidden = false; return; }
+  if (!await enableMotion()) return;
+  $('btnRejoin').disabled = true;
+  toast('Reopening your game…', 4000);
+  hostOpen(sess.code, id => {
+    Object.assign(mp, { on: true, host: true, me: id, code: sess.code, key: sess.key });
+    mp.state = sess.state;
+    // Everyone else has to reconnect: they get the usual time before their turns are skipped.
+    const now = Date.now();
+    for (const p of mp.state.players) if (p.id !== id && !p.gone) { p.away = true; p.voice = false; mp.lastSeen.set(p.id, now); }
+    hostBroadcast();
+  }, e => {
+    $('btnRejoin').disabled = false;
+    $('startErr').textContent = "Couldn't reopen the game. Try again in a minute, or start a new one.";
+    $('startErr').hidden = false;
+  }, 10);
+}
+function addPlayer({ id, name, hand, avatar, color, key }) {
+  const p = { id, key, name, hand, avatar, color, x: 0, z: 0, strokes: 0, done: false, gone: false, away: false, scores: [], voice: false, muted: false };
+  mp.state.players.push(p);
+  return p;
+}
+function lobbyInfo() {
+  const s = mp.state, active = s.players.filter(p => !p.gone);
+  return { host: s.players[0] ? s.players[0].name : '', phase: s.phase, hole: s.hole, names: active.map(p => p.name),
+           taken: s.players.map(p => p.color), full: active.length >= MP_MAX };
+}
+function hostAccept(conn) {
+  conn.on('data', m => hostHandle(m, conn));
+  const end = () => hostConnClosed(conn);
+  conn.on('close', end);
+  conn.on('error', end);
+}
+// A friend's link dropped. Keep their seat (they're probably on their way back); the heartbeat skips their
+// turns if they stay away.
+function hostConnClosed(conn) {
+  const id = conn.peer;
+  if (mp.conns.get(id) !== conn) return;   // an old link already replaced by a newer one
+  mp.conns.delete(id);
+  const s = mp.state, p = s && s.players.find(q => q.id === id);
+  if (!p || p.gone) return;
+  if (s.phase === 'lobby') s.players.splice(s.players.indexOf(p), 1);
+  else p.away = true;
+  hostBroadcast();
+}
+function hostDrop(p) {
+  const s = mp.state, c = mp.conns.get(p.id);
+  mp.conns.delete(p.id);
+  try { c && c.close(); } catch (e) {}
+  if (s.phase === 'lobby') s.players.splice(s.players.indexOf(p), 1);
+  else {
+    Object.assign(p, { gone: true, away: false, voice: false });
+    toast(`${p.name} dropped out. They can rejoin any time.`, 3000);
+    if (s.phase === 'play' && s.turn === p.id) advanceTurn(s);
+  }
+  hostBroadcast();
+}
+function hostSendAll(msg, except) { for (const [id, c] of mp.conns) if (id !== except && c.open) c.send(msg); }
+function hostBroadcast() {
+  hostSendAll({ t: 'state', s: mp.state });
+  session.save({ state: mp.state });
+  onState(mp.state);
+}
+// Someone joining, or coming back to their seat.
+function hostHello(m, conn) {
+  const s = mp.state, id = conn.peer;
+  const name = String(m.name || 'Player').slice(0, 12);
+  let p = m.key ? s.players.find(q => q.key === String(m.key)) : null;
+  if (p) {
+    // Same seat, same score, new connection.
+    const old = mp.conns.get(p.id);
+    if (old && old !== conn) try { old.close(); } catch (e) {}
+    if (p.id !== id) {
+      mp.conns.delete(p.id);
+      if (s.turn === p.id) s.turn = id;
+      p.id = id;
+    }
+    Object.assign(p, { gone: false, away: false, voice: false, muted: false, name });
+    if (s.phase !== 'lobby') toast(`${name} is back`, 2000);
+  } else {
+    if (s.players.filter(q => !q.gone).length >= MP_MAX) { conn.send({ t: 'reject', why: 'That game is full (4 players).' }); setTimeout(() => conn.close(), 500); return; }
+    const color = Number(m.color), avatar = clamp(Math.round(Number(m.avatar) || 0), 0, AVATARS.length - 1);
+    if (!MP_COLORS.includes(color) || s.players.some(q => q.color === color)) { conn.send({ t: 'taken', info: lobbyInfo() }); return; }
+    p = addPlayer({ id, name, hand: m.hand === 'left' ? 'left' : 'right', avatar, color, key: String(m.key || newKey()) });
+    // Joining partway through a hole: watch this one, play from the next.
+    if (s.phase !== 'lobby') { p.done = true; toast(`${name} joined`, 2000); }
+  }
+  mp.conns.set(id, conn);
+  mp.lastSeen.set(id, Date.now());
+  hostBroadcast();
+}
+function hostHandle(m, conn) {
+  const s = mp.state, from = conn ? conn.peer : mp.me;
+  if (!s) return;
+  if (conn && mp.conns.get(from) === conn) mp.lastSeen.set(from, Date.now());
+  if (m.t === 'ping') return;
+  if (m.t === 'look' && conn) { conn.send({ t: 'info', info: lobbyInfo() }); return; }
+  if (m.t === 'hello' && conn) { hostHello(m, conn); return; }
+  if (conn && mp.conns.get(from) !== conn) return;   // only seated players beyond this point
+  if (m.t === 'voice') {
+    const p = s.players.find(q => q.id === from);
+    if (!p) return;
+    p.voice = !!m.on; p.muted = !!m.muted;
+    hostBroadcast();
+  } else if (m.t === 'live') {
+    if (s.phase !== 'play' || from !== s.turn) return;
+    hostSendAll(m, from);
+    if (from !== mp.me) onLive(m);
+  } else if (m.t === 'done') {
+    if (s.phase !== 'play' || from !== s.turn) return;
+    const p = s.players.find(q => q.id === from);
+    p.x = m.x; p.z = m.z; p.strokes = m.strokes;
+    if (m.holed || m.strokes >= 8) { p.done = true; p.scores[s.hole] = m.strokes; }
+    advanceTurn(s);
+    hostBroadcast();
+  } else if (m.t === 'start' && !conn && s.phase === 'lobby') {
+    startHoleState(s, 0);
+    hostBroadcast();
+  } else if (m.t === 'next' && !conn) {
+    if (s.phase === 'holeEnd') startHoleState(s, s.hole + 1);
+    else if (s.phase === 'final') { s.players.forEach(p => (p.scores = [])); startHoleState(s, 0); }
+    else return;
+    hostBroadcast();
+  }
+}
+function startHoleState(s, i) {
+  s.phase = 'play'; s.hole = i;
+  for (const p of s.players) Object.assign(p, { x: HOLES[i].tee[0], z: HOLES[i].tee[1], strokes: 0, done: p.gone });
+  const first = s.players.find(p => !p.gone);
+  s.turn = first ? first.id : null;
+  s.shot = (s.shot || 0) + 1;
+  if (!first) s.phase = 'final';
+}
+// Strictly in order: the next player who hasn't finished the hole (you again if everyone else is in).
+function advanceTurn(s) {
+  const n = s.players.length, i = s.players.findIndex(p => p.id === s.turn);
+  for (let k = 1; k <= n; k++) {
+    const p = s.players[(i + k + n) % n];
+    if (!p.done && !p.gone) { s.turn = p.id; s.shot = (s.shot || 0) + 1; return; }
+  }
+  s.turn = null;
+  s.phase = s.hole === HOLES.length - 1 ? 'final' : 'holeEnd';
+}
+
+// --- Joining (and getting back in) ---
+// Connect to a game's host, then run `then(conn)` once the link is open. Reuses this phone's matchmaking
+// id when it's still good, so the host sees the same player.
+function clientConnect(code, then) {
+  const go = () => {
+    try { mp.hostConn && mp.hostConn.close(); } catch (e) {}
+    const conn = mp.peer.connect(MP_PREFIX + code, { reliable: true });
+    mp.hostConn = conn;
+    conn.on('open', () => { if (mp.hostConn === conn) then(conn); });
+    conn.on('data', m => { if (mp.hostConn === conn) clientData(m); });
+    const end = () => { if (mp.hostConn === conn) { mp.hostConn = null; clientLost(); } };
+    conn.on('close', end);
+    conn.on('error', end);
+  };
+  if (mp.peer && mp.peer.open && !mp.peer.disconnected) { go(); return; }
+  if (!iceTried) { iceReady.then(() => clientConnect(code, then)); return; }   // relay details first
+  try { mp.peer && mp.peer.destroy(); } catch (e) {}
+  const peer = new Peer(peerOpts());
+  mp.peer = peer;
+  peer.on('open', id => { if (mp.peer !== peer) return; mp.me = id; go(); });
+  peer.on('call', onVoiceCall);
+  peer.on('error', e => {
+    if (mp.peer !== peer || mp.reconnecting) return;   // while getting back in, the retry loop keeps going
+    if (e.type === 'peer-unavailable' && mp.on) { clientLost(); return; }
+    if (!mp.on) { clearTimeout(mp.lookTimer); $('btnJoin').disabled = false; mpError(mpNetErrorText(e)); }
+    else toast(mpNetErrorText(e), 3000);
+  });
+}
+const mpNetErrorText = e => e.type === 'peer-unavailable' ? 'No game found with that code. Check it with whoever invited you.'
+  : "Couldn't reach the game service. Check your connection and try again.";
+// Look at a game before joining: who's in, which colours are free.
+function clientLook(code) {
+  if (!window.Peer) { mpError("Couldn't load multiplayer. Check your connection and reload."); return; }
+  mp.code = code;
+  const sess = session.get();
+  mp.rejoin = !!(sess && sess.code === code && !sess.host);   // we have a seat in this game already
+  mp.key = mp.rejoin ? sess.key : newKey();
+  mp.info = null;
+  $('mpErr').textContent = `Connecting to game ${code}…`; $('mpErr').classList.remove('err'); $('mpErr').hidden = false;
+  clientConnect(code, conn => conn.send({ t: 'look' }));
+  // A link that never opens gives no error at all, so say so rather than sit there.
+  clearTimeout(mp.lookTimer);
+  mp.lookTimer = setTimeout(() => {
+    if (mp.info || mp.on) return;
+    mpReset();
+    mpError(`Couldn't reach game ${code}. Check the code, and that the host has the game open with the screen on. `
+      + 'If you\'re on different networks (say one on mobile data, one on Wi-Fi), try both on the same Wi-Fi.');
+  }, 12000);
+}
+function helloMsg() {
+  return { t: 'hello', name: mpName() || store.get('name', 'Player'), hand: settings.hand, avatar: pick.avatar, color: pick.color, key: mp.key };
+}
+function tryJoin() {
+  if (mp.on || mp.joining) return;
+  if (!mp.info || !mp.hostConn || !mp.hostConn.open) return;   // still connecting: joins when the info arrives
+  if (!motionOn || pick.avatar == null || pick.color == null || !mpName()) return;
+  if (!mp.rejoin && mp.info.taken.includes(pick.color)) { colourTaken('That colour is taken. Tap another one to join.'); return; }
+  mp.joining = true;
+  mp.hostConn.send(helloMsg());
+}
+// Your colour is someone else's: show the colours (they may be scrolled out of sight) and make the next
+// colour tap join, since the Join button has done its job.
+function colourTaken(msg) {
+  pick.color = null;
+  mp.invite = true;
+  $('btnCreate').hidden = $('joinRow').hidden = true;
+  $('btnJoin').disabled = false;
+  renderPick();
+  $('pickErr').textContent = msg; $('pickErr').hidden = false;
+  $('colorGrid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  toast(msg, 3000);
+}
+function clientData(m) {
+  mp.hostSeen = Date.now();
+  if (m.t === 'state') {
+    const back = mp.reconnecting;
+    if (!mp.on) { mp.on = true; mp.joining = false; }
+    mp.reconnecting = false;
+    clearTimeout(mp.retryTimer);
+    session.save();
+    if (back) {
+      toast('Back in the game', 2000);
+      if (voice.stream) mpSend({ t: 'voice', on: true, muted: voice.muted });   // the host forgot our voice when we dropped
+    }
+    onState(m.s);
+  } else if (m.t === 'info') {
+    mp.info = m.info;
+    clearTimeout(mp.lookTimer);
+    $('mpErr').hidden = true; $('mpErr').classList.add('err');
+    const i = m.info;
+    $('mpTitle').textContent = `Join ${i.host}'s game`;
+    $('mpIntro').textContent = (i.names.length ? `${i.names.join(', ')} ${i.names.length > 1 ? 'are' : 'is'} in. ` : '')
+      + (i.phase === 'lobby' ? 'Pick your golfer and ball colour to join.' : `They're on hole ${i.hole + 1}: you'll watch it and play from the next one.`);
+    if (i.full) mpError('That game is full (4 players).');
+    renderPick();
+    tryJoin();
+  } else if (m.t === 'taken') {
+    mp.joining = false; mp.info = m.info; mp.rejoin = false;
+    colourTaken('Someone just took that colour. Tap another one to join.');
+  } else if (m.t === 'live') onLive(m);
+  else if (m.t === 'reject') { mpReset(); mpError(m.why); }
+}
+// Join with a typed code: look, then join straight away with the golfer and colour already picked.
+async function mpJoin() {
+  const name = mpName();
+  if (!name) { mpError('Type your name first.'); return; }
+  const code = $('mpCode').value.trim().toUpperCase();
+  if (!new RegExp(`^[A-Z]{${MP_CODE_LEN}}$`).test(code)) { mpError(`The code is ${MP_CODE_LEN} letters.`); return; }
+  if (pick.avatar == null || pick.color == null) { mpError('Pick a golfer and a ball colour.'); return; }
+  if (!await enableMotion()) return;
+  $('mpErr').hidden = true;
+  $('btnJoin').disabled = true;
+  clientLook(code);
+}
+// Rejoin from the start screen after the page was closed.
+async function mpRejoin(sess) {
+  if (!await enableMotion()) return;
+  $('btnRejoin').disabled = true;
+  showMpScreen('create');
+  $('mpTitle').textContent = 'Getting back in…';
+  $('mpName').value = sess.name || $('mpName').value;
+  clientLook(sess.code);
+}
+// Lost the host: keep trying to get back in for a while before giving up.
+function clientLost() {
+  if (!mp.on) { if (!mp.joining) { $('btnJoin').disabled = false; } return; }
+  if (mp.reconnecting) return;
+  mp.reconnecting = true;
+  mp.reconnectUntil = Date.now() + MP_RECONNECT_FOR;
+  toast('Connection lost. Getting you back in…', 4000);
+  clientRetry();
+}
+function clientRetry() {
+  clearTimeout(mp.retryTimer);
+  if (!mp.reconnecting) return;
+  if (Date.now() > mp.reconnectUntil) { mpHostGone(); return; }
+  clientConnect(mp.code, conn => conn.send(helloMsg()));
+  mp.retryTimer = setTimeout(clientRetry, 4000);
+}
+// Heartbeat, every 2 s. The host pings everyone and skips the turns of anyone silent for MP_TIMEOUT
+// (a phone that dies or loses signal doesn't always close its link); a player who hasn't heard from the
+// host for 8 s starts getting back in.
+setInterval(() => {
+  if (!mp.on || !mp.state) return;
+  const now = Date.now();
+  // Waking from sleep (screen locked, app in the background): give everyone a fresh start, not a mass drop.
+  if (now - mp.lastBeat > 6000) for (const id of mp.lastSeen.keys()) mp.lastSeen.set(id, now);
+  mp.lastBeat = now;
+  if (mp.host) {
+    hostSendAll({ t: 'ping' });
+    for (const p of [...mp.state.players]) {
+      if (p.id === mp.me || p.gone) continue;
+      if (now - (mp.lastSeen.get(p.id) ?? now) > MP_TIMEOUT) hostDrop(p);
+    }
+  } else if (!mp.reconnecting) {
+    mpSend({ t: 'ping' });
+    if (mp.hostSeen && now - mp.hostSeen > 8000) clientLost();
+  }
+  voiceSync();   // retry any voice link that didn't connect
+}, 2000);
+// Back from the background: check the links straight away instead of waiting for the heartbeat.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !mp.on) return;
+  const now = Date.now();
+  if (mp.host) {
+    for (const id of mp.lastSeen.keys()) mp.lastSeen.set(id, now);
+    const p = mp.peer;
+    if (p && p.destroyed) hostOpen(mp.code, () => hostBroadcast(), () => toast('Lost the game service. Friends may need to rejoin.', 3500), 10);
+    else if (p && p.disconnected) try { p.reconnect(); } catch (e) {}
+  } else if (!mp.hostConn || !mp.hostConn.open || now - mp.hostSeen > 5000) clientLost();
+});
+function mpHostGone() {
+  mpReset();
+  ['scrLobby', 'scrMpScore', 'scrSettings', 'scrDone'].forEach(id => ($(id).hidden = true));
+  showMpScreen('create');
+  mpError("Couldn't get back into the game. If it's still going, tap Join with the code to try again.");
+}
+async function mpInvite() {
+  const url = `${location.origin}${location.pathname}?join=${mp.code}`;
+  const me = mp.state && mp.state.players.find(p => p.id === mp.me);
+  const text = `${me ? me.name : 'A friend'} wants you to play Pocket Putt now! Tap to join:`;
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Pocket Putt', text, url }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(`${text} ${url}`); toast('Invite link copied. Paste it into a text to your friends.', 3500); }
+  catch (e) { window.prompt('Copy this invite link and send it to your friends:', url); }
+}
+
+// --- Everyone: apply the shared state ---
+function onState(s) {
+  mp.state = s;
+  const seen = mp.seen;
+  mp.seen = { phase: s.phase, hole: s.hole, turn: s.turn, shot: s.shot };
+  voiceSync();
+  if (s.phase === 'lobby') { renderLobby(); return; }
+  if (!mp.entered) enterMpGame();
+  if (s.phase === 'play') {
+    $('scrMpScore').hidden = true;
+    const newHole = seen.hole !== s.hole || seen.phase !== 'play';
+    if (newHole) mpStartHole(s.hole);
+    // Every shot is a new turn, even when it's the same player again (everyone else is in).
+    if (newHole || seen.turn !== s.turn || seen.shot !== s.shot) mpBeginTurn();
+  } else {
+    showMpScore();
+  }
+  updateHud();
+}
+function onLive(m) {
+  if (mp.state && m.pid === mp.state.turn) mp.live = m;
+}
+function renderLobby() {
+  ['scrStart', 'scrMp'].forEach(id => ($(id).hidden = true));
+  $('scrLobby').hidden = false;
+  $('lobbyCode').textContent = mp.code;
+  const ps = mp.state.players;
+  $('lobbyList').innerHTML = ps.map((p, i) => `<li data-pid="${esc(p.id)}"><span class="dot" style="background:${hex(p.color)}"></span>${esc(p.name)}${p.id === mp.me ? ' (you)' : ''}${i === 0 ? ' · host' : ''}${voiceIcon(p)}${p.away ? ' · reconnecting…' : ''}</li>`).join('');
+  $('btnMpStart').hidden = !mp.host;
+  $('lobbyWait').hidden = mp.host;
+  $('btnMpStart').textContent = ps.length < 2 ? 'Start (just me so far)' : `Start game (${ps.length} players)`;
+}
+function enterMpGame() {
+  mp.entered = true;
+  ['scrStart', 'scrMp', 'scrLobby'].forEach(id => ($(id).hidden = true));
+  showGameHud();
+  $('btnMic').hidden = false;
+  st.started = true;
+  practice = false;
+}
+function mpStartHole(i) {
+  settings.zoom = 1; store.set('zoom', 1);
+  holeIdx = i; hole = HOLES[i];
+  buildHole();
+  showBanner(i);
+  mp.watchT = null;
+}
+function mpBeginTurn() {
+  const p = turnPlayer();
+  if (!p) return;
+  clearTimeout(mp.doneTimer);
+  ball.x = p.x; ball.z = p.z; ball.vx = ball.vz = 0; ball.state = 'rest'; ball.drop = 0;
+  ballMesh.material.color.setHex(p.color);
+  Object.assign(mp, { live: null, watchK: p.strokes, cupPlayed: false });
+  slowT = 0; slowFrom = null; walkIn = 0; customAim = null;
+  Object.assign(st, { aiming: false, aimMode: false, hitLocked: false });
+  leaveSet(); setBlend = 0;
+  if (p.id === mp.me) {
+    ball.remote = false;
+    strokes = p.strokes;
+    goToBall();
+    st.putterOn = true;
+    needAim = true;   // face the ball from your home direction on the next sensor reading
+    toast('Your turn! Look down at the ball and tap Set.', 3000);
+    haptic(40);
+  } else {
+    ball.remote = true;
+    st.view = 'watch'; st.atBall = false; st.putterOn = false;
+    needAim = false;
+    mp.watchT = null;   // re-face down the new line on the next frame
+    toast(`${p.name}'s turn. Hold your phone up to watch.`, 3000);
+  }
+  updateHud();
+}
+
+// The shooter's line: where they stand, where they're aiming, which hand.
+function mpLine() {
+  const p = turnPlayer();
+  if (!p) return null;
+  if (p.id === mp.me) return { O: origin.clone(), T: stance.T.clone(), hand: settings.hand, p };
+  const L = mp.live && mp.live.pid === p.id ? mp.live : null;
+  if (L) return { O: new V3(L.ox, 0, L.oz), T: new V3(L.tx, 0, L.tz).normalize(), hand: L.hand, p, L };
+  const [tx, tz] = p.strokes === 0 ? hole.aim : hole.cup;
+  const T = new V3(tx - p.x, 0, tz - p.z);
+  if (T.lengthSq() < 1e-6) T.set(0, 0, -1);
+  return { O: new V3(p.x, 0, p.z), T: T.normalize(), hand: p.hand, p };
+}
+const mpWatchers = () => mp.state.players.filter(p => !p.gone && p.id !== mp.state.turn);
+// A watching spot on the ground: back along the line behind the ball, so you look down the shot,
+// with the shooter standing just off the line to one side.
+function watchSpot(line, T, slot) {
+  const [back, side] = WATCH_SLOTS[slot % WATCH_SLOTS.length];
+  const A = faceDir(T, line.hand);
+  const x = line.O.x - T.x * back + A.x * side, z = line.O.z - T.z * back + A.z * side;
+  return new V3(x, onGreen(x, z) ? ter(x, z) : 0, z);
+}
+
+function mpTick(dt) {
+  const s = mp.state;
+  if (s && s.phase === 'play') {
+    if (st.view === 'watch') mpUpdateWatch(dt);
+    if (myTurn()) {
+      mp.liveT -= dt;
+      if (mp.liveT <= 0) {
+        mp.liveT = 0.06;
+        mpSend({ t: 'live', pid: mp.me, bx: ball.x, bz: ball.z, drop: ball.drop, s: ball.state, sin: isSet ? pose.sin : 0, set: isSet,
+                 tx: stance.T.x, tz: stance.T.z, ox: origin.x, oz: origin.z, hand: settings.hand, k: strokes });
+      }
+    }
+  }
+  mpUpdateAvatars(dt);
+  mpUpdateBalls();
+  voiceMeters(dt);
+}
+function mpUpdateWatch(dt) {
+  const line = mpLine();
+  if (!line) return;
+  const L = line.L;
+  // The shooter's ball, smoothed from their stream.
+  if (L) {
+    const k = Math.min(1, dt * 14);
+    ball.x += (L.bx - ball.x) * k; ball.z += (L.bz - ball.z) * k; ball.drop += (L.drop - ball.drop) * k;
+    ball.state = L.s;
+    if (L.k > mp.watchK) { mp.watchK = L.k; sfx.hit(1.5); updateHud(); }
+    if (L.s === 'holed' && !mp.cupPlayed) { mp.cupPlayed = true; sfx.cup(); }
+  }
+  // Stand behind the line, looking down it the way your feet face; when the shooter re-aims, the course
+  // swings round so you still are.
+  if (!mp.watchT) { mp.watchT = line.T.clone(); mp.snapEye = true; }
+  else mp.watchT.lerp(line.T, Math.min(1, dt * 3)).normalize();
+  faceHome(mp.watchT);
+  const slot = Math.max(0, mpWatchers().findIndex(p => p.id === mp.me));
+  const eye = watchSpot(line, mp.watchT, slot).add(new V3(0, WATCH_EYE, 0));
+  if (mp.snapEye) { mp.watchEye.copy(eye); mp.snapEye = false; }
+  else mp.watchEye.lerp(eye, Math.min(1, dt * 4));
+}
+// Your shot is over: tell the host after a moment, so everyone sees the ball settle first.
+function mpAfterShot(holed) {
+  if (holed) toast(strokes === 1 ? 'Hole in one!' : 'In!', 1500);
+  else if (strokes >= 8) toast('8 strokes — picking up.', 2000);
+  clearTimeout(mp.doneTimer);
+  mp.doneTimer = setTimeout(() => { if (myTurn()) mpSend({ t: 'done', x: ball.x, z: ball.z, strokes, holed }); }, 900);
+}
+
+// --- Other players: simple golfers and their resting balls ---
+function limb(a, b, r, m) {
+  const d = new V3().subVectors(b, a), L = d.length();
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, L, 8), m);
+  c.position.copy(a).addScaledVector(d, 0.5);
+  c.quaternion.setFromUnitVectors(UP, d.normalize());
+  return c;
+}
+// Local axes: +z = the way they face, +y = up, +x = their left. The arms and putter hang from the
+// shoulders in `swing`, which rocks about +z for the stroke.
+// The shirt is the player's ball colour; `avatar` picks the skin, trousers and headwear (AVATARS).
+function makeGolfer(color, name, avatar = 0) {
+  const look = AVATARS[clamp(avatar | 0, 0, AVATARS.length - 1)];
+  const mats = [];
+  const mat = c => { const m = new THREE.MeshLambertMaterial({ color: c, transparent: true }); mats.push(m); return m; };
+  const shirt = mat(color), pants = mat(look.pants), skin = mat(look.skin), metal = mat(0xc9cfd6), dark = mat(0x3b4149);
+  const g = new THREE.Group();
+  for (const sx of [-0.11, 0.11]) g.add(limb(new V3(sx, 0, 0), new V3(sx, 0.8, 0.02), 0.065, pants));
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.56, 0.24), shirt);
+  torso.position.set(0, 1.08, 0.07); torso.rotation.x = 0.28;
+  const headM = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), skin);
+  headM.position.set(0, 1.5, 0.2);
+  g.add(torso, headM);
+  // Headwear, sitting on the head at (0, 1.5, 0.2); the face looks along +z.
+  const H = new V3(0, 1.5, 0.2);
+  const at = (m, x, y, z) => { m.position.set(H.x + x, H.y + y, H.z + z); g.add(m); return m; };
+  const dome = (r, m, sy = 1) => { const d = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), m); d.scale.y = sy; return d; };
+  const disc = (r, h, m, r2 = r) => new THREE.Mesh(new THREE.CylinderGeometry(r, r2, h, 24), m);
+  if (look.hat === 'cap') {
+    at(dome(0.115, shirt), 0, 0.02, 0);
+    at(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.012, 0.1), shirt), 0, 0.03, 0.12);
+  } else if (look.hat === 'visor') {
+    const white = mat(0xf4f4f4);
+    at(dome(0.112, mat(0x2a1d14)), 0, 0.02, 0);
+    at(disc(0.117, 0.04, white), 0, 0.045, 0);
+    at(new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.012, 0.11), white), 0, 0.03, 0.13);
+  } else if (look.hat === 'bucket') {
+    const khaki = mat(0xc8b88a);
+    at(disc(0.09, 0.1, khaki, 0.12), 0, 0.08, 0);
+    at(disc(0.19, 0.012, khaki), 0, 0.03, 0);
+  } else if (look.hat === 'beanie') {
+    const knit = mat(0xd8452f);
+    at(dome(0.12, knit, 1.25), 0, 0.0, 0);
+    at(new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), mat(0xf4f4f4)), 0, 0.155, 0);
+  } else if (look.hat === 'cowboy') {
+    const leather = mat(0x7a5230);
+    at(disc(0.24, 0.014, leather), 0, 0.04, 0);
+    at(disc(0.085, 0.13, leather, 0.105), 0, 0.11, 0);
+  } else {
+    at(dome(0.116, mat(0x3a2a1a), 0.9), 0, 0.015, -0.01);
+  }
+  const swing = new THREE.Group();
+  swing.position.set(0, 1.33, 0.14);
+  const hands = new V3(0, -0.6, 0.26), club = new V3(0, -1.31, 0.38);
+  for (const sx of [-0.17, 0.17]) swing.add(limb(new V3(sx, 0, 0), hands, 0.045, shirt));
+  swing.add(limb(hands, club, 0.008, metal));
+  const ph = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.11), dark);
+  ph.position.copy(club).add(new V3(0, 0.015, 0));
+  swing.add(ph);
+  g.add(swing);
+  // Name tag above the head.
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+  const x = cv.getContext('2d');
+  x.font = '700 34px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  const w = Math.min(248, x.measureText(name).width + 30);
+  x.fillStyle = 'rgba(10,24,17,.82)';
+  if (x.roundRect) { x.beginPath(); x.roundRect((256 - w) / 2, 6, w, 52, 18); x.fill(); } else x.fillRect((256 - w) / 2, 6, w, 52);
+  x.fillStyle = hex(color); x.fillRect((256 - w) / 2 + 10, 26, 12, 12);
+  x.fillStyle = '#fff'; x.fillText(name, 128 + 8, 33);
+  const tag = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false }));
+  tag.scale.set(0.8, 0.2, 1); tag.position.set(0, 1.92, 0.1);
+  g.add(tag);
+  g.userData = { mats, swing, th: 0 };
+  return g;
+}
+function setGolfer(g, pos, facing, opacity, theta) {
+  g.position.copy(pos);
+  const z = facing.clone().normalize(), xa = new V3().crossVectors(UP, z);
+  g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xa, UP, z));
+  g.userData.swing.rotation.z = theta;
+  for (const m of g.userData.mats) { m.opacity = opacity; m.depthWrite = opacity > 0.99; }
+}
+function mpUpdateAvatars(dt) {
+  const s = mp.state;
+  const line = s && s.phase === 'play' ? mpLine() : null;
+  const shown = new Set();
+  if (line) {
+    const ws = mpWatchers();
+    const T = st.view === 'watch' && mp.watchT ? mp.watchT : line.T;
+    const groundY = onGreen(line.O.x, line.O.z) ? ter(line.O.x, line.O.z) : 0;
+    for (const p of s.players) {
+      if (p.gone || p.id === mp.me) continue;
+      let g = mp.avatars.get(p.id);
+      if (!g) { g = makeGolfer(p.color, p.name, p.avatar); mp.avatars.set(p.id, g); scene.add(g); }
+      shown.add(p.id);
+      if (p.id === s.turn) {
+        // Standing over their ball, face just behind it, rocking the putter with their real stroke.
+        const A = faceDir(T, line.hand);
+        const pos = line.O.clone().addScaledVector(A, -0.52).addScaledVector(T, -0.05).setY(groundY);
+        const sinv = line.L && line.L.set ? clamp(line.L.sin, -0.9, 0.9) : 0;
+        const th = Math.asin(sinv) * (line.hand === 'right' ? 1 : -1);
+        g.userData.th = lerp(g.userData.th, th, Math.min(1, dt * 20));
+        // Solid while they line up and swing; see-through the moment they've hit it, so you can follow a
+        // ball that rolls behind them. (Their stroke count goes up on contact.)
+        const hit = line.L && line.L.k > p.strokes;
+        setGolfer(g, pos, A, hit ? SHOOTER_OPACITY : 1, g.userData.th);
+      } else {
+        g.userData.th = 0;
+        setGolfer(g, watchSpot(line, T, ws.indexOf(p)), T, 1, 0);
+      }
+    }
+  }
+  for (const [id, g] of mp.avatars) g.visible = shown.has(id);
+}
+function mpUpdateBalls() {
+  const s = mp.state;
+  if (!s) return;
+  for (const p of s.players) {
+    let b = mp.balls.get(p.id);
+    if (!b) { b = new THREE.Mesh(ballMesh.geometry, new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.35 })); mp.balls.set(p.id, b); scene.add(b); }
+    // Balls still at the tee aren't shown (they'd all sit on top of each other); the shooter's is the main ball.
+    b.visible = s.phase === 'play' && !p.gone && !p.done && p.strokes > 0 && p.id !== s.turn;
+    if (b.visible) b.position.set(p.x, ter(p.x, p.z) + BALL_R, p.z);
+  }
+}
+
+// --- Voice chat ---
+// An open line between everyone who turns it on: each pair of phones talks directly (fine for 4 players).
+// Only the player with the smaller id places each call, so a pair never ends up with two. Joining is a
+// choice (players in the same room leave it off); the mic button mutes.
+const voice = { stream: null, muted: false, calls: new Map(), audios: new Map(), meters: new Map(), self: null, talk: new Map(), needTap: false, meterT: 0 };
+const voiceIcon = p => p.voice ? (p.muted ? ' 🔇' : ' 🎙') : '';
+async function voiceOn() {
+  if (voice.stream) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast("This browser can't do voice chat.", 3000); return; }
+  try {
+    voice.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false });
+  } catch (e) {
+    toast('Microphone access was blocked. Allow it in your browser settings to talk.', 4000);
+    return;
+  }
+  if (!mp.on) { voiceStop(); return; }
+  unlockAudio();
+  voice.muted = false;
+  voice.self = voiceMeter(voice.stream);
+  mpSend({ t: 'voice', on: true, muted: false });
+  voiceSync();
+  toast('Voice on. Everyone who turns it on can hear you.', 2500);
+}
+function voiceToggleMute() {
+  if (!voice.stream) return;
+  voice.muted = !voice.muted;
+  voice.stream.getAudioTracks().forEach(t => (t.enabled = !voice.muted));
+  mpSend({ t: 'voice', on: true, muted: voice.muted });
+  voiceUi();
+}
+function voiceStop() {
+  if (voice.stream) voice.stream.getTracks().forEach(t => t.stop());
+  voice.stream = null; voice.self = null;
+  for (const c of voice.calls.values()) try { c.close(); } catch (e) {}
+  voice.calls.clear();
+  for (const id of [...voice.audios.keys()]) voiceDrop(id);
+  voiceUi();
+}
+// Call everyone with voice on who we aren't connected to yet; hang up on anyone who left or turned it off.
+function voiceSync() {
+  if (voice.stream && mp.on && mp.state && mp.peer) {
+    for (const p of mp.state.players) {
+      if (p.id === mp.me) continue;
+      const call = voice.calls.get(p.id);
+      if (!p.voice || p.gone) {
+        if (call) { voice.calls.delete(p.id); try { call.close(); } catch (e) {} voiceDrop(p.id); }
+        continue;
+      }
+      // A call that never got going: drop it so it's placed again.
+      if (call && !voice.audios.has(p.id) && Date.now() - call.at > 15000) { voice.calls.delete(p.id); try { call.close(); } catch (e) {} }
+      if (!voice.calls.has(p.id) && mp.me < p.id) {
+        const c = mp.peer.call(p.id, voice.stream);
+        if (c) voiceHook(c);
+      }
+    }
+  }
+  voiceUi();
+}
+function onVoiceCall(call) {
+  if (!voice.stream) { try { call.close(); } catch (e) {} return; }
+  call.answer(voice.stream);
+  voiceHook(call);
+}
+function voiceHook(call) {
+  const id = call.peer, old = voice.calls.get(id);
+  if (old && old !== call) try { old.close(); } catch (e) {}
+  call.at = Date.now();
+  voice.calls.set(id, call);
+  call.on('stream', s => voicePlay(id, s));
+  const end = () => { if (voice.calls.get(id) === call) { voice.calls.delete(id); voiceDrop(id); } };
+  call.on('close', end);
+  call.on('error', end);
+}
+function voicePlay(id, stream) {
+  let el = voice.audios.get(id);
+  if (!el) {
+    el = document.createElement('audio');
+    el.autoplay = true; el.playsInline = true; el.setAttribute('playsinline', '');
+    document.body.appendChild(el);
+    voice.audios.set(id, el);
+  }
+  if (el.srcObject !== stream) { el.srcObject = stream; voice.meters.set(id, voiceMeter(stream)); }
+  el.play().catch(() => { voice.needTap = true; toast('Tap the screen to hear your friends', 3000); });
+}
+function voiceDrop(id) {
+  const el = voice.audios.get(id);
+  if (el) { el.srcObject = null; el.remove(); }
+  voice.audios.delete(id); voice.meters.delete(id); voice.talk.delete(id);
+}
+// Phones can block sound that starts without a tap; the next tap anywhere starts it.
+document.addEventListener('pointerdown', () => {
+  if (!voice.needTap) return;
+  voice.needTap = false;
+  for (const el of voice.audios.values()) el.play().catch(() => {});
+}, true);
+function voiceMeter(stream) {
+  if (!actx) return null;
+  try {
+    const an = actx.createAnalyser(); an.fftSize = 512;
+    actx.createMediaStreamSource(stream).connect(an);   // measuring only: not connected to the speaker
+    return { an, buf: new Float32Array(an.fftSize) };
+  } catch (e) { return null; }
+}
+function voiceLevel(m) {
+  if (!m) return 0;
+  m.an.getFloatTimeDomainData(m.buf);
+  let s = 0;
+  for (const x of m.buf) s += x * x;
+  return Math.sqrt(s / m.buf.length);
+}
+// Who's talking: a green glow on their name (and on your mic button when it's you), held briefly.
+function voiceMeters(dt) {
+  voice.meterT -= dt;
+  if (voice.meterT > 0) return;
+  voice.meterT = 0.1;
+  const now = performance.now(), lit = new Set();
+  const check = (id, m) => { if (voiceLevel(m) > 0.02) voice.talk.set(id, now); if (now - (voice.talk.get(id) || -1e9) < 350) lit.add(id); };
+  if (voice.stream && !voice.muted) check(mp.me, voice.self);
+  for (const [id, m] of voice.meters) check(id, m);
+  document.querySelectorAll('#turnBar .chip, #lobbyList li').forEach(el => el.classList.toggle('talking', lit.has(el.dataset.pid)));
+  $('btnMic').classList.toggle('talking', lit.has(mp.me));
+}
+function voiceUi() {
+  const b = $('btnMic'), l = $('btnVoiceLobby');
+  b.classList.toggle('off', !voice.stream);
+  b.classList.toggle('live', !!voice.stream && !voice.muted);
+  b.textContent = voice.stream && voice.muted ? '🔇' : '🎙';
+  l.textContent = !voice.stream ? '🎙 Turn on voice chat' : voice.muted ? '🔇 Muted · tap to talk' : '🎙 Voice on · tap to mute';
+}
+const pressMic = () => { if (voice.stream) voiceToggleMute(); else voiceOn(); };
+$('btnMic').onclick = pressMic;
+$('btnVoiceLobby').onclick = pressMic;
+
+// --- HUD and scorecard ---
+function mpHud() {
+  const s = mp.state, tb = $('turnBar');
+  tb.hidden = !(s && s.phase === 'play');
+  if (tb.hidden) return;
+  const tp = turnPlayer();
+  const watching = st.view === 'watch';
+  ['btnClub', 'btnMove', 'btnAim', 'btnZoomIn', 'btnZoomOut'].forEach(id => ($(id).hidden = watching));
+  $('info').innerHTML = `Hole <b>${holeIdx + 1}</b>/${HOLES.length} · Par ${hole.par} · ` + (tp ? (tp.id === mp.me ? '<b>Your turn</b>' : `${esc(tp.name)}'s turn`) : '');
+  tb.innerHTML = s.players.filter(p => !p.gone).map(p => {
+    const now = p.id === s.turn;
+    const k = !now ? p.strokes : p.id === mp.me ? strokes : mp.live && mp.live.pid === p.id ? mp.live.k : p.strokes;
+    return `<div class="chip${now ? ' now' : ''}${p.done ? ' done' : ''}" data-pid="${esc(p.id)}"><span class="dot" style="background:${hex(p.color)}"></span>${esc(p.name)}${voiceIcon(p)}${p.done && p.scores[s.hole] == null ? ' · next hole' : ` · ${k}${p.done ? ' ✓' : ''}`}${p.away ? ' · reconnecting…' : ''}</div>`;
+  }).join('');
+}
+function showMpScore() {
+  const s = mp.state, ps = s.players, final = s.phase === 'final';
+  const tot = p => p.scores.reduce((a, b) => a + (b || 0), 0);
+  let rows = `<tr><th>Hole</th><th>Par</th>${ps.map(p => `<th><span class="dot" style="background:${hex(p.color)}"></span> ${esc(p.name)}</th>`).join('')}</tr>`;
+  let par = 0;
+  for (let k = 0; k <= s.hole; k++) {
+    par += HOLES[k].par;
+    rows += `<tr><td>${k + 1}</td><td>${HOLES[k].par}</td>${ps.map(p => `<td>${p.scores[k] ?? '–'}</td>`).join('')}</tr>`;
+  }
+  rows += `<tr><th>Total</th><th>${par}</th>${ps.map(p => `<th>${tot(p)}</th>`).join('')}</tr>`;
+  $('mpScoreTable').innerHTML = rows;
+  let title = `Hole ${s.hole + 1} done`;
+  if (final) {
+    const live = ps.filter(p => !p.gone);
+    const best = Math.min(...live.map(tot));
+    const win = live.filter(p => tot(p) === best).map(p => p.name);
+    title = win.length > 1 ? `Tie: ${win.join(' & ')}` : `${win[0]} wins!`;
+  }
+  $('mpScoreTitle').textContent = title;
+  $('btnMpNext').hidden = !mp.host;
+  $('btnMpNext').textContent = final ? 'Play again' : `Hole ${s.hole + 2}`;
+  $('mpScoreWait').hidden = mp.host;
+  $('mpScoreWait').textContent = `Waiting for ${ps[0].name} to ${final ? 'start a new round' : 'start the next hole'}…`;
+  $('scrMpScore').hidden = false;
+}
+
+$('btnFriends').onclick = () => showMpScreen('create');
+// Back / Not now: drop any half-made link and the invite in the address, and go back to the start.
+$('btnMpBack').onclick = () => {
+  if (st.started) { location.href = location.pathname; return; }
+  mpReset();
+  if (location.search) history.replaceState(null, '', location.pathname);
+  $('scrMp').hidden = true; $('scrStart').hidden = false;
+};
+$('btnCreate').onclick = mpCreate;
+$('btnJoin').onclick = mpJoin;
+$('mpCode').addEventListener('keydown', e => { if (e.key === 'Enter') mpJoin(); });
+$('btnMpStart').onclick = () => mpSend({ t: 'start' });
+$('btnMpNext').onclick = () => mpSend({ t: 'next' });
+const leaveGame = () => { session.clear(); mpReset(); location.href = location.pathname; };
+$('btnLeave').onclick = leaveGame;
+$('btnLeaveGame').onclick = leaveGame;
+$('btnInvite').onclick = mpInvite;
+$('btnInvite2').onclick = mpInvite;
+
+// Opening the page: an invite link goes straight to picking a golfer and colour; a game this phone was in
+// (closed page, flat battery) is offered on the start screen.
+{
+  const q = new URLSearchParams(location.search).get('join');
+  const code = q ? q.trim().toUpperCase() : '';
+  const sess = session.get();
+  if (sess && (!code || code === sess.code) && (!sess.host || sess.state)) {
+    const b = $('btnRejoin');
+    b.textContent = sess.host ? `↩ Resume your game (${sess.code})` : `↩ Rejoin game ${sess.code}`;
+    b.hidden = false;
+    b.onclick = () => (sess.host ? mpResume(sess) : mpRejoin(sess));
+  } else if (new RegExp(`^[A-Z]{${MP_CODE_LEN}}$`).test(code)) {
+    showMpScreen('invite', code);
+  }
+}
+
+// ---------- Per-frame ----------
+const _ray = new V3();
+function updateRing() {
+  ring.visible = st.aiming;
+  if (!st.aiming) return;
+  const o = camera.position, d = _ray.set(0, 0, -1).applyQuaternion(camera.quaternion);
+  ringOk = false;
+  if (d.y > -0.02) { ring.visible = false; return; }
+  let hit = null;
+  for (let t = 0.3; t < 30; t += 0.03) {
+    const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
+    const g = onGreen(x, z) ? ter(x, z) : -0.04;
+    if (y <= g) { hit = [x, g, z]; break; }
+  }
+  if (!hit) { ring.visible = false; return; }
+  ring.position.set(hit[0], hit[1] + 0.01, hit[2]);
+  ringOk = onGreen(hit[0], hit[2]);
+  ring.material.color.set(ringOk ? 0x5fe08a : 0xff6b5e);
+}
+
+function updateAimRing() {
+  aimRing.visible = aimPath.visible = false;
+  aimHitOk = false;
+  if (st.aimMode) {
+    const o = camera.position, d = _ray.set(0, 0, -1).applyQuaternion(camera.quaternion);
+    if (d.y < -0.02) {
+      for (let t = 0.3; t < 30; t += 0.03) {
+        const x = o.x + d.x * t, y = o.y + d.y * t, z = o.z + d.z * t;
+        const g = onGreen(x, z) ? ter(x, z) : -0.04;
+        if (y <= g) { aimHit.set(x, g, z); aimHitOk = true; break; }
+      }
+    }
+    if (aimHitOk) {
+      aimRing.visible = true;
+      aimRing.position.set(aimHit.x, aimHit.y + 0.012, aimHit.z);
+      const dx = aimHit.x - ball.x, dz = aimHit.z - ball.z, L = Math.hypot(dx, dz);
+      if (L > 0.05) {
+        aimPath.visible = true;
+        aimPath.scale.set(L, 1, 1);
+        aimPath.position.set((ball.x + aimHit.x) / 2, Math.max(ter(ball.x, ball.z), aimHit.y) + 0.006, (ball.z + aimHit.z) / 2);
+        aimPath.rotation.set(-Math.PI / 2, 0, Math.atan2(-dz, dx));
+      }
+    }
+  }
+  aimMarker.visible = !!customAim && !st.aimMode;
+  if (customAim) aimMarker.position.set(customAim[0], onGreen(customAim[0], customAim[1]) ? ter(customAim[0], customAim[1]) : -0.04, customAim[1]);
+}
+
+const _gripOff = new V3();
+function placePutter() {
+  if (!st.putterOn || !st.started) { putter.visible = false; return; }
+  putter.visible = true;
+  const op = putterOpacity(pose.elev);
+  for (const m of putterMats) { m.opacity = op; m.depthWrite = op > 0.99; }
+  shadowMat.opacity = op * setBlend;
+  head.position.copy(pose.H);
+  head.quaternion.copy(pose.headQ);
+  head.userData.hosel.position.z = heelZ();
+  // Shaft points from the hosel up toward your hands just below the screen, but is never longer than a
+  // real putter, so it shrinks with the view when you zoom out.
+  const top = hoselTop().applyQuaternion(pose.headQ).add(pose.H);
+  const hands = settings.zoom > 1
+    // Zoomed out: real hands, above and a little toward you, so the shaft leans like a real putter.
+    ? top.clone().addScaledVector(UP, 0.75).addScaledVector(stance.A, -0.3)
+    : _gripOff.set(0, -0.055, -0.14).applyQuaternion(camera.quaternion).add(camera.position);
+  hands.addScaledVector(stance.T, GRIP_SWING * pose.sin * setBlend);
+  const up = new V3().subVectors(hands, top);
+  const grip = top.clone().addScaledVector(up.normalize(), Math.min(SHAFT_LEN, hands.distanceTo(top)));
+  const dir = new V3().subVectors(top, grip), len = dir.length();
+  shaft.position.copy(grip).addScaledVector(dir, 0.5);
+  shaft.quaternion.setFromUnitVectors(UP, dir.normalize());
+  shaft.scale.set(1, len, 1);
+}
+
+function updateCamera() {
+  camera.position.copy(pose.P);
+  camera.quaternion.slerpQuaternions(Qv, lockQ, camMix);
+}
+
+// Edge-of-screen pointers for the ball and the hole when they're out of view.
+const _p = new V3();
+function pointTo(el, label, world, text) {
+  _p.copy(world).applyMatrix4(camera.matrixWorldInverse);
+  const behind = _p.z > 0;
+  const ndc = world.clone().project(camera);
+  if (!behind && Math.abs(ndc.x) < 0.92 && Math.abs(ndc.y) < 0.92) { el.hidden = label.hidden = true; return; }
+  let sx = _p.x, sy = _p.y;
+  if (behind) { sx = -sx; sy = -sy; }
+  const ang = Math.atan2(-sy, sx);
+  const w = appW, h = appH, m = 44, top = 100, bottom = 80;
+  const cx = w / 2, cy = (top + h - bottom) / 2;
+  const k = Math.min((w / 2 - m) / Math.abs(Math.cos(ang) || 1e-6), ((h - top - bottom) / 2) / Math.abs(Math.sin(ang) || 1e-6));
+  const x = cx + Math.cos(ang) * k, y = cy + Math.sin(ang) * k;
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.style.transform = `rotate(${ang}rad)`;
+  label.style.left = x + 'px'; label.style.top = y + 'px';
+  label.textContent = text;
+  el.hidden = label.hidden = false;
+}
+// Place the target pointer where the line from the ball to the target leaves the screen, so it sits
+// exactly on the shot line (the ball isn't at the centre of the screen, so "direction from centre" would be off).
+function pointAlongShot(el, label, target, text) {
+  const ground = new V3(target.x, onGreen(target.x, target.z) ? ter(target.x, target.z) : 0, target.z);
+  const w = appW, h = appH, m = 44, top = 100, bottom = 110;
+  const toPx = v => [(v.x + 1) / 2 * w, (1 - v.y) / 2 * h];
+  const inFront = v => v.clone().applyMatrix4(camera.matrixWorldInverse).z < 0;
+  const tN = ground.clone().project(camera);
+  if (inFront(ground) && Math.abs(tN.x) < 0.92 && Math.abs(tN.y) < 0.92) { el.hidden = label.hidden = true; return; }
+  const b = new V3(ball.x, ter(ball.x, ball.z), ball.z);
+  const dx0 = ground.x - b.x, dz0 = ground.z - b.z, L = Math.hypot(dx0, dz0) || 1;
+  const via = new V3(b.x + dx0 / L * 0.3, ter(b.x + dx0 / L * 0.3, b.z + dz0 / L * 0.3), b.z + dz0 / L * 0.3);
+  const [ax, ay0] = toPx(b.clone().project(camera)), [bx, by] = toPx(via.clone().project(camera));
+  if (!inFront(b) || !inFront(via) || ax < m || ax > w - m || ay0 < 0 || ay0 > h) { pointTo(el, label, target, text); return; }
+  const ay = clamp(ay0, top, h - bottom);   // keep clear of the corner buttons
+  let dx = bx - ax, dy = by - ay;
+  const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
+  // Distance along the line to the first edge it actually reaches (ignore an edge it's already sitting on).
+  const cands = [dx > 1e-6 ? (w - m - ax) / dx : dx < -1e-6 ? (m - ax) / dx : Infinity,
+                 dy > 1e-6 ? (h - bottom - ay) / dy : dy < -1e-6 ? (top - ay) / dy : Infinity].filter(v => v > 1);
+  const t = cands.length ? Math.min(...cands) : 0;
+  const x = ax + dx * t, y = ay + dy * t;
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+  label.style.left = x + 'px'; label.style.top = y + 'px';
+  label.textContent = text;
+  el.hidden = label.hidden = false;
+}
+const _cupPos = new V3();
+function updatePointers() {
+  const on = st.started && ball.state !== 'holed';
+  if (!on) { ['ballPtr', 'ballPtrLabel', 'holePtr', 'holePtrLabel'].forEach(id => ($(id).hidden = true)); return; }
+  pointTo($('ballPtr'), $('ballPtrLabel'), ballMesh.position, `Ball ${fmtDist(camera.position.distanceTo(ballMesh.position))}`);
+  // Second pointer: your locked aim point if you have one (yellow), otherwise the hole (red).
+  const [tx, tz] = customAim || hole.cup;
+  _cupPos.set(tx, (onGreen(tx, tz) ? ter(tx, tz) : 0) + (customAim ? 0.3 : 0.6), tz);
+  $('holePtrDisc').setAttribute('fill', customAim ? 'rgba(200,150,0,.9)' : 'rgba(160,30,30,.85)');
+  const dist = fmtDist(Math.hypot(ball.x - tx, ball.z - tz));
+  pointAlongShot($('holePtr'), $('holePtrLabel'), _cupPos, customAim ? `Aim ${dist}` : `Hole ${dist}`);
+}
+
+let slowT = 0, slowFrom = null;
+function tick(dt) {
+  // After the first yard at full speed, a second of slow motion so you can look up and find the ball;
+  // the last quarter second eases back to full speed.
+  if (slowFrom && ball.state === 'rolling' && Math.hypot(ball.x - slowFrom[0], ball.z - slowFrom[1]) >= SLOWMO_AFTER) {
+    slowFrom = null;
+    slowT = SLOWMO_TIME;
+  }
+  if (ball.state !== 'rolling') slowFrom = null;
+  let simDt = dt;
+  if (slowT > 0) {
+    slowT -= dt;
+    const left = Math.max(0, slowT);
+    simDt = dt * (left > 0.25 ? SLOWMO_SPEED : lerp(1, SLOWMO_SPEED, left / 0.25));
+  }
+  const n = Math.ceil(simDt / (1 / 480));
+  for (let i = 0; i < n; i++) stepBall(simDt / n);
+  walkToBall(dt);
+  if (mp.on) mpTick(dt);
+  // Ease the head between hanging from the phone and resting on the green.
+  setBlend = clamp(setBlend + (isSet ? 1 : -1) * dt / 0.2, 0, 1);
+  camMix = clamp(camMix + (camLocked ? 1 : -1) * dt / 0.25, 0, 1);
+  updateQv();
+  computePose();
+  placeBallMesh();
+  updateCamera();
+  camera.updateMatrixWorld();
+  placePutter();
+  updateRing();
+  updateAimRing();
+  updatePointers();
+  updateSetButton();
+  renderer.clear();
+  renderer.render(scene, camera);
+  renderer.clearDepth();
+  renderer.render(putterScene, camera);
+}
+let lastT = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  tick(dt);
+  requestAnimationFrame(frame);
+}
+buildHole();
+placeBallMesh();
+requestAnimationFrame(frame);
+
+// Test hook: drive the game without a phone.
+window.__pp = {
+  sensor: (a, b, g, t) => onSensor(a, b, g, t ?? performance.now()),
+  step: (sec, fps = 60) => { for (let i = 0; i < sec * fps; i++) tick(1 / fps); },
+  state: () => ({ st: { ...st }, ball: { ...ball }, strokes, yawOffset, isSet, setBlend, elev: pose.elev, sin: pose.sin, cam: camera.position.toArray(), head: pose.H.toArray(), n: pose.n.toArray() }),
+  ballRef: ball, hole: i => startHole(i), pressClub, pressMove, pressAim, pressSet, zoomStep, start, mp,
+  // Which way the phone faces on the course, next to the way you should be facing (degrees).
+  aim: () => { const deg = r => r == null ? null : +(wrap(r) * 180 / Math.PI).toFixed(1), a = awayDir(Qv);
+    return { facing: deg(a && heading(a)), shouldFace: deg(st.view === 'watch' && mp.watchT ? heading(mp.watchT) : heading(stance.A)) }; },
+};
+</script>
+</body>
+</html>
